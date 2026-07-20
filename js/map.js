@@ -1,25 +1,81 @@
 // Karten-Rendering (Canvas) und Klick-Navigation
 
 const GameMap = (() => {
-  let canvas, ctx;
+  let canvas, ctx, tooltip, wrap;
   let onCityClickCallback = null;
+  let hoveredCityId = null;
 
   function init(canvasEl) {
     canvas = canvasEl;
     ctx = canvas.getContext("2d");
+    wrap = canvas.parentElement;
+    tooltip = document.getElementById("city-tooltip");
     canvas.addEventListener("click", handleClick);
+    canvas.addEventListener("mousemove", handleMouseMove);
+    canvas.addEventListener("mouseleave", hideTooltip);
   }
 
   function onCityClick(cb) {
     onCityClickCallback = cb;
   }
 
-  function handleClick(evt) {
+  function cityAt(evt) {
     const rect = canvas.getBoundingClientRect();
     const x = ((evt.clientX - rect.left) / rect.width) * canvas.width;
     const y = ((evt.clientY - rect.top) / rect.height) * canvas.height;
-    const hit = CITIES.find((c) => Math.hypot(c.x - x, c.y - y) < 16);
+    return CITIES.find((c) => Math.hypot(c.x - x, c.y - y) < 16);
+  }
+
+  function handleClick(evt) {
+    const hit = cityAt(evt);
     if (hit && onCityClickCallback) onCityClickCallback(hit.id);
+  }
+
+  function hideTooltip() {
+    hoveredCityId = null;
+    tooltip.classList.add("hidden");
+  }
+
+  function tooltipContent(city) {
+    const exportNames = city.exports.map((id) => getGood(id).name).join(", ") || "—";
+    const importNames = city.imports.map((id) => getGood(id).name).join(", ") || "—";
+    let html = `<h3>${city.name}</h3>`;
+    html += `<div class="tooltip-row"><span>Exportiert</span><span>${exportNames}</span></div>`;
+    html += `<div class="tooltip-row"><span>Importiert</span><span>${importNames}</span></div>`;
+
+    const kontorLevel = Kontor.level(city.id);
+    if (kontorLevel > 0) {
+      const relevantGoods = Array.from(new Set([...city.exports, ...city.imports]));
+      html += `<div class="tooltip-hint">Kontor Stufe ${kontorLevel} — bekannte Marktpreise:</div>`;
+      relevantGoods.forEach((goodId) => {
+        const good = getGood(goodId);
+        const buy = Market.buyPrice(city.id, goodId).toFixed(1);
+        const sell = Market.sellPrice(city.id, goodId).toFixed(1);
+        const stock = Market.availableStock(city.id, goodId);
+        html += `<div class="tooltip-row"><span>${good.name}</span><span>${buy}/${sell} G · Lager ${stock}</span></div>`;
+      });
+    } else {
+      html += `<div class="tooltip-hint">Kein Kontor hier — Preise erst vor Ort sichtbar.</div>`;
+    }
+    return html;
+  }
+
+  function handleMouseMove(evt) {
+    const hit = cityAt(evt);
+    if (!hit) {
+      hideTooltip();
+      return;
+    }
+    hoveredCityId = hit.id;
+    tooltip.innerHTML = tooltipContent(hit);
+    tooltip.classList.remove("hidden");
+    const wrapRect = wrap.getBoundingClientRect();
+    let left = evt.clientX - wrapRect.left + 16;
+    let top = evt.clientY - wrapRect.top + 16;
+    const maxLeft = wrap.clientWidth - tooltip.offsetWidth - 4;
+    const maxTop = wrap.clientHeight - tooltip.offsetHeight - 4;
+    tooltip.style.left = Math.max(4, Math.min(left, maxLeft)) + "px";
+    tooltip.style.top = Math.max(4, Math.min(top, maxTop)) + "px";
   }
 
   function drawLandmasses() {

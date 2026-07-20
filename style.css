@@ -64,11 +64,53 @@ body {
   padding: 12px;
 }
 
+#map-wrap {
+  position: relative;
+  line-height: 0;
+}
+
 #map-canvas {
   background: #1b3a5c radial-gradient(ellipse at center, #24507a 0%, #0d1b2a 90%);
   border: 2px solid #3a5a40;
   border-radius: 6px;
   cursor: pointer;
+}
+
+#city-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: #0f2033;
+  border: 1px solid #f2c14e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 180px;
+  max-width: 260px;
+  z-index: 40;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+#city-tooltip.hidden { display: none; }
+
+#city-tooltip h3 {
+  margin: 0 0 4px;
+  color: #f2c14e;
+  font-size: 13px;
+}
+
+#city-tooltip .tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #26425f;
+  padding: 1px 0;
+}
+
+#city-tooltip .tooltip-hint {
+  color: #9fb4c7;
+  font-size: 11px;
+  margin-top: 4px;
 }
 
 #sidebar {
