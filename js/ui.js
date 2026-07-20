@@ -30,6 +30,26 @@ const UI = (() => {
     el.travelText = document.getElementById("travel-text");
     el.travelBarFill = document.getElementById("travel-bar-fill");
 
+    el.saveStatus = document.getElementById("save-status");
+    el.saveNowBtn = document.getElementById("save-now-btn");
+    el.saveExportBtn = document.getElementById("save-export-btn");
+    el.saveImportBtn = document.getElementById("save-import-btn");
+    el.saveImportInput = document.getElementById("save-import-input");
+    el.newGameBtn = document.getElementById("new-game-btn");
+
+    el.saveNowBtn.addEventListener("click", () => callbacks.saveNow && callbacks.saveNow());
+    el.saveExportBtn.addEventListener("click", () => callbacks.exportSave && callbacks.exportSave());
+    el.saveImportBtn.addEventListener("click", () => el.saveImportInput.click());
+    el.saveImportInput.addEventListener("change", () => {
+      const file = el.saveImportInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => callbacks.importSave && callbacks.importSave(reader.result);
+      reader.readAsText(file);
+      el.saveImportInput.value = "";
+    });
+    el.newGameBtn.addEventListener("click", () => callbacks.newGame && callbacks.newGame());
+
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
@@ -188,6 +208,10 @@ const UI = (() => {
     el.travelOverlay.classList.add("hidden");
   }
 
+  function setSaveStatus(message) {
+    el.saveStatus.textContent = message;
+  }
+
   function renderAll() {
     renderHUD();
     renderCargoBar();
@@ -208,5 +232,6 @@ const UI = (() => {
     showTravelOverlay,
     updateTravelBar,
     hideTravelOverlay,
+    setSaveStatus,
   };
 })();

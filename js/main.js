@@ -11,29 +11,101 @@ const Game = (() => {
     return day;
   }
 
-  function saveGame() {
-    const payload = {
+  function buildPayload() {
+    return {
       day,
       ship: Ship.serialize(),
       market: Market.serialize(),
       kontor: Kontor.serialize(),
     };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+  }
+
+  function saveGame() {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(buildPayload()));
+  }
+
+  function applyPayload(payload) {
+    if (!payload || !payload.ship || !payload.market || !payload.kontor || typeof payload.day !== "number") {
+      throw new Error("Ungültiges Spielstand-Format.");
+    }
+    day = payload.day;
+    Ship.restore(payload.ship);
+    Market.restore(payload.market);
+    Kontor.restore(payload.kontor);
   }
 
   function loadGame() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     try {
-      const payload = JSON.parse(raw);
-      day = payload.day;
-      Ship.restore(payload.ship);
-      Market.restore(payload.market);
-      Kontor.restore(payload.kontor);
+      applyPayload(JSON.parse(raw));
       return true;
     } catch (e) {
       return false;
     }
+  }
+
+  function resumeIfSailing() {
+    if (!Ship.get().sailing) return;
+    UI.showTravelOverlay(getCity(Ship.get().destinationCityId).name);
+    UI.updateTravelBar(Ship.progressRatio());
+    setTimeout(sailStep, SAIL_STEP_MS);
+  }
+
+  function handleSaveNow() {
+    saveGame();
+    UI.setSaveStatus(`Gespeichert (Tag ${day}).`);
+    UI.log("Spielstand manuell gespeichert.");
+  }
+
+  function handleExportSave() {
+    const payload = buildPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hansespiel-tag${day}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    UI.setSaveStatus(`Als Datei gesichert (Tag ${day}).`);
+    UI.log("Spielstand als Datei heruntergeladen.");
+  }
+
+  function handleImportSave(jsonText) {
+    if (Ship.get().sailing) {
+      pendingPirateResolve = null;
+      UI.hidePirateModal();
+      UI.hideTravelOverlay();
+    }
+    try {
+      applyPayload(JSON.parse(jsonText));
+    } catch (e) {
+      UI.setSaveStatus("Import fehlgeschlagen: " + e.message);
+      UI.log("Import fehlgeschlagen: " + e.message);
+      return;
+    }
+    saveGame();
+    UI.renderAll();
+    UI.setSaveStatus(`Spielstand aus Datei geladen (Tag ${day}).`);
+    UI.log("Spielstand aus Datei geladen.");
+    resumeIfSailing();
+  }
+
+  function handleNewGame() {
+    if (!window.confirm("Neues Spiel beginnen? Der aktuelle Spielstand geht dabei verloren.")) return;
+    pendingPirateResolve = null;
+    UI.hidePirateModal();
+    UI.hideTravelOverlay();
+    localStorage.removeItem(SAVE_KEY);
+    day = 1;
+    Ship.init();
+    Market.init();
+    Kontor.init();
+    UI.renderAll();
+    UI.setSaveStatus("Neues Spiel gestartet.");
+    UI.log("Ein neues Spiel beginnt in Lübeck.");
   }
 
   function sailStep() {
@@ -178,14 +250,14 @@ const Game = (() => {
     UI.on("withdraw", handleWithdraw);
     UI.on("buyCannon", handleBuyCannon);
     UI.on("pirateChoice", handlePirateChoice);
+    UI.on("saveNow", handleSaveNow);
+    UI.on("exportSave", handleExportSave);
+    UI.on("importSave", handleImportSave);
+    UI.on("newGame", handleNewGame);
 
     UI.log("Willkommen an Bord! Die Reise durch die Hanse beginnt in Lübeck.");
     UI.renderAll();
-    if (Ship.get().sailing) {
-      UI.showTravelOverlay(getCity(Ship.get().destinationCityId).name);
-      UI.updateTravelBar(Ship.progressRatio());
-      setTimeout(sailStep, SAIL_STEP_MS);
-    }
+    resumeIfSailing();
     renderLoop();
   }
 

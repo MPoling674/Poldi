@@ -27,6 +27,7 @@
       <button class="tab-btn active" data-tab="market">Markt</button>
       <button class="tab-btn" data-tab="kontor">Kontor</button>
       <button class="tab-btn" data-tab="log">Log</button>
+      <button class="tab-btn" data-tab="save">Spielstand</button>
     </div>
 
     <section id="tab-market" class="tab-panel active">
@@ -48,6 +49,22 @@
     <section id="tab-log" class="tab-panel">
       <h2>Ereignisse</h2>
       <ul id="event-log"></ul>
+    </section>
+
+    <section id="tab-save" class="tab-panel">
+      <h2>Spielstand</h2>
+      <p class="hint">Der Spielstand wird automatisch nach jeder Aktion im Browser gespeichert (lokal, auf diesem Rechner).</p>
+      <p id="save-status" class="hint"></p>
+      <div class="save-actions">
+        <button id="save-now-btn">Jetzt speichern</button>
+        <button id="save-export-btn">Als Datei sichern</button>
+        <button id="save-import-btn">Aus Datei laden</button>
+        <input type="file" id="save-import-input" accept="application/json" class="hidden-input">
+      </div>
+      <p class="hint">"Als Datei sichern" lädt den Spielstand als JSON-Datei herunter — nützlich als Backup oder um auf einem anderen Rechner weiterzuspielen.</p>
+      <div class="save-actions">
+        <button id="new-game-btn" class="danger-btn">Neues Spiel beginnen</button>
+      </div>
     </section>
   </aside>
 </main>
