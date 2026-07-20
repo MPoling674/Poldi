@@ -20,6 +20,7 @@ const UI = (() => {
     el.kontorInfo = document.getElementById("kontor-info");
 
     el.eventLog = document.getElementById("event-log");
+    el.toastContainer = document.getElementById("toast-container");
 
     el.pirateModal = document.getElementById("pirate-modal");
     el.pirateText = document.getElementById("pirate-text");
@@ -184,6 +185,20 @@ const UI = (() => {
     li.textContent = `Tag ${Game.currentDay()}: ${message}`;
     el.eventLog.insertBefore(li, el.eventLog.firstChild);
     while (el.eventLog.children.length > 60) el.eventLog.removeChild(el.eventLog.lastChild);
+
+    showToast(message);
+  }
+
+  function showToast(message) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.textContent = message;
+    el.toastContainer.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("toast-visible"));
+    setTimeout(() => {
+      toast.classList.remove("toast-visible");
+      setTimeout(() => toast.remove(), 250);
+    }, 2000);
   }
 
   function showPirateModal(text) {
