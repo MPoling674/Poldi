@@ -17,9 +17,16 @@ const Market = (() => {
 
   function init() {
     state = {};
+    fillMissingEntries();
+  }
+
+  // Ergänzt fehlende Stadt/Ware-Einträge, z.B. nach dem Laden eines alten
+  // Spielstands, der noch nicht alle aktuellen Waren kennt.
+  function fillMissingEntries() {
     CITIES.forEach((city) => {
-      state[city.id] = {};
+      if (!state[city.id]) state[city.id] = {};
       GOODS.forEach((good) => {
+        if (state[city.id][good.id]) return;
         const factor = factorFor(city, good.id);
         state[city.id][good.id] = {
           price: Math.round(good.basePrice * factor * 100) / 100,
@@ -87,6 +94,7 @@ const Market = (() => {
 
   function restore(saved) {
     state = saved;
+    fillMissingEntries();
   }
 
   return { init, tick, getEntry, buyPrice, sellPrice, availableStock, buy, sell, serialize, restore };

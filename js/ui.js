@@ -11,6 +11,8 @@ const UI = (() => {
     el.hudCargo = document.getElementById("hud-cargo");
     el.hudNetworth = document.getElementById("hud-networth");
 
+    el.cargoBarItems = document.getElementById("cargo-bar-items");
+
     el.marketCityName = document.getElementById("market-city-name");
     el.marketTbody = document.getElementById("market-tbody");
     el.marketHint = document.getElementById("market-hint");
@@ -54,6 +56,18 @@ const UI = (() => {
       : `vor Anker in ${getCity(ship.currentCityId).name}`;
     el.hudCargo.textContent = `${Ship.cargoUsed()}/${ship.cargoCapacity}`;
     el.hudNetworth.textContent = Ship.networth() + " G";
+  }
+
+  function renderCargoBar() {
+    const ship = Ship.get();
+    const goodIds = Object.keys(ship.cargo).filter((id) => ship.cargo[id] > 0);
+    if (goodIds.length === 0) {
+      el.cargoBarItems.innerHTML = '<span class="cargo-empty">Kein Frachtgut an Bord</span>';
+      return;
+    }
+    el.cargoBarItems.innerHTML = goodIds
+      .map((goodId) => `<span class="cargo-chip">${getGood(goodId).name} <b>${ship.cargo[goodId]}</b></span>`)
+      .join("");
   }
 
   function renderMarket() {
@@ -176,6 +190,7 @@ const UI = (() => {
 
   function renderAll() {
     renderHUD();
+    renderCargoBar();
     renderMarket();
     renderKontor();
   }

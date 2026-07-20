@@ -19,6 +19,45 @@ body {
 .hud-item .label { color: #9fb4c7; font-size: 11px; text-transform: uppercase; }
 .hud-item span:last-child { font-size: 16px; font-weight: bold; color: #f2c14e; }
 
+#cargo-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  background: #0f2033;
+  border-bottom: 1px solid #3a5a40;
+}
+
+#cargo-bar .label {
+  color: #9fb4c7;
+  font-size: 11px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cargo-bar-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cargo-chip {
+  background: #1b3a5c;
+  border: 1px solid #3a5a40;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: #e8dfc9;
+}
+
+.cargo-chip b { color: #f2c14e; }
+
+.cargo-empty {
+  font-size: 12px;
+  color: #6a7a8a;
+  font-style: italic;
+}
+
 #game {
   display: flex;
   gap: 12px;
