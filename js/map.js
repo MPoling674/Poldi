@@ -143,9 +143,8 @@ const GameMap = (() => {
     });
   }
 
-  function drawShip() {
-    const ship = Ship.get();
-    const pos = Ship.currentPixelPos();
+  function drawShip(ship) {
+    const pos = Fleet.currentPixelPos(ship);
     ctx.save();
     ctx.translate(pos.x, pos.y);
     if (ship.sailing) {
@@ -159,20 +158,24 @@ const GameMap = (() => {
     ctx.lineTo(-8, -6);
     ctx.lineTo(-8, 6);
     ctx.closePath();
-    ctx.fillStyle = "#f2c14e";
+    ctx.fillStyle = ship.isPlayer ? "#f2c14e" : "#5fb3d9";
     ctx.fill();
     ctx.strokeStyle = "#0d1b2a";
     ctx.stroke();
     ctx.restore();
   }
 
+  function drawShips() {
+    Fleet.allShips().forEach(drawShip);
+  }
+
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawLandmasses();
-    const ship = Ship.get();
+    const player = Fleet.playerShip();
     drawRoutes();
-    drawCities(ship.currentCityId, ship.destinationCityId);
-    drawShip();
+    drawCities(player.currentCityId, player.destinationCityId);
+    drawShips();
   }
 
   return { init, onCityClick, render };

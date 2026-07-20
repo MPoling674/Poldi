@@ -32,6 +32,7 @@
       <button class="tab-btn active" data-tab="market">Markt</button>
       <button class="tab-btn" data-tab="kontor">Kontor</button>
       <button class="tab-btn" data-tab="log">Log</button>
+      <button class="tab-btn" data-tab="fleet">Flotte</button>
       <button class="tab-btn" data-tab="save">Spielstand</button>
     </div>
 
@@ -54,6 +55,16 @@
     <section id="tab-log" class="tab-panel">
       <h2>Ereignisse</h2>
       <ul id="event-log"></ul>
+    </section>
+
+    <section id="tab-fleet" class="tab-panel">
+      <h2>Flotte</h2>
+      <div id="fleet-ships"></div>
+      <h2>Neues Schiff kaufen</h2>
+      <p class="hint">Nur an Orten mit eigenem Kontor möglich — dort steht eine Werft zur Verfügung.</p>
+      <div id="fleet-buy"></div>
+      <h2>Lösegeldforderungen</h2>
+      <div id="fleet-ransoms"></div>
     </section>
 
     <section id="tab-save" class="tab-panel">
@@ -94,7 +105,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/market.js"></script>
-<script src="js/ship.js"></script>
+<script src="js/fleet.js"></script>
 <script src="js/kontor.js"></script>
 <script src="js/pirates.js"></script>
 <script src="js/map.js"></script>

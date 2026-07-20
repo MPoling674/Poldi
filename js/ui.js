@@ -19,6 +19,10 @@ const UI = (() => {
 
     el.kontorInfo = document.getElementById("kontor-info");
 
+    el.fleetShips = document.getElementById("fleet-ships");
+    el.fleetBuy = document.getElementById("fleet-buy");
+    el.fleetRansoms = document.getElementById("fleet-ransoms");
+
     el.eventLog = document.getElementById("event-log");
     el.toastContainer = document.getElementById("toast-container");
 
@@ -69,18 +73,24 @@ const UI = (() => {
   }
 
   function renderHUD() {
-    const ship = Ship.get();
+    const ship = Fleet.playerShip();
     el.hudDate.textContent = "Tag " + Game.currentDay();
-    el.hudGold.textContent = ship.gold + " G";
-    el.hudShipStatus.textContent = ship.sailing
+    el.hudGold.textContent = Fleet.gold() + " G";
+    el.hudShipStatus.textContent = !ship
+      ? "kein eigenes Schiff"
+      : ship.sailing
       ? `unterwegs nach ${getCity(ship.destinationCityId).name} (${ship.progressDays}/${ship.totalDays} Tage)`
       : `vor Anker in ${getCity(ship.currentCityId).name}`;
-    el.hudCargo.textContent = `${Ship.cargoUsed()}/${ship.cargoCapacity}`;
-    el.hudNetworth.textContent = Ship.networth() + " G";
+    el.hudCargo.textContent = ship ? `${Fleet.cargoUsed(ship)}/${ship.cargoCapacity}` : "—";
+    el.hudNetworth.textContent = Fleet.networth() + " G";
   }
 
   function renderCargoBar() {
-    const ship = Ship.get();
+    const ship = Fleet.playerShip();
+    if (!ship) {
+      el.cargoBarItems.innerHTML = '<span class="cargo-empty">Kein eigenes Schiff im Dienst</span>';
+      return;
+    }
     const goodIds = Object.keys(ship.cargo).filter((id) => ship.cargo[id] > 0);
     if (goodIds.length === 0) {
       el.cargoBarItems.innerHTML = '<span class="cargo-empty">Kein Frachtgut an Bord</span>';
@@ -92,7 +102,13 @@ const UI = (() => {
   }
 
   function renderMarket() {
-    const ship = Ship.get();
+    const ship = Fleet.playerShip();
+    if (!ship) {
+      el.marketCityName.textContent = "-";
+      el.marketTbody.innerHTML = "";
+      el.marketHint.textContent = "Kein eigenes Schiff — kaufe eines in einer Stadt mit Kontor (Tab \"Flotte\").";
+      return;
+    }
     if (ship.sailing) {
       el.marketCityName.textContent = "Auf hoher See";
       el.marketTbody.innerHTML = "";
@@ -101,7 +117,7 @@ const UI = (() => {
     }
     const city = getCity(ship.currentCityId);
     el.marketCityName.textContent = city.name;
-    el.marketHint.textContent = `Frachtraum frei: ${Ship.cargoFree()} / ${ship.cargoCapacity}`;
+    el.marketHint.textContent = `Frachtraum frei: ${Fleet.cargoFree(ship)} / ${ship.cargoCapacity}`;
     el.marketTbody.innerHTML = "";
     GOODS.forEach((good) => {
       const entry = Market.getEntry(city.id, good.id);
@@ -130,14 +146,16 @@ const UI = (() => {
   }
 
   function renderKontor() {
-    const ship = Ship.get();
-    const dockedCityId = ship.sailing ? null : ship.currentCityId;
+    const ship = Fleet.playerShip();
+    const dockedCityId = ship && !ship.sailing ? ship.currentCityId : null;
     let html = "";
 
-    html += `<div class="kontor-city"><span>Kanonen an Bord: ${ship.cannons}</span>
-      <button data-action="cannon" ${ship.cannons >= 6 ? "disabled" : ""}>
-        Aufrüsten (${Kontor.cannonCost()} G)
-      </button></div>`;
+    if (ship) {
+      html += `<div class="kontor-city"><span>Kanonen an Bord: ${ship.cannons}</span>
+        <button data-action="cannon" ${ship.cannons >= 6 ? "disabled" : ""}>
+          Aufrüsten (${Kontor.cannonCost()} G)
+        </button></div>`;
+    }
 
     CITIES.forEach((city) => {
       const lvl = Kontor.level(city.id);
@@ -177,6 +195,66 @@ const UI = (() => {
         if (action === "store" && callbacks.store) callbacks.store(btn.dataset.city, btn.dataset.good, 10);
         if (action === "withdraw" && callbacks.withdraw) callbacks.withdraw(btn.dataset.city, btn.dataset.good, 10);
       });
+    });
+  }
+
+  function shipStatusLine(ship) {
+    if (ship.sailing) {
+      return `unterwegs nach ${getCity(ship.destinationCityId).name} (${ship.progressDays}/${ship.totalDays} Tage)`;
+    }
+    return `vor Anker in ${getCity(ship.currentCityId).name}`;
+  }
+
+  function renderFleet() {
+    let html = "";
+    Fleet.allShips().forEach((ship) => {
+      const cargoUsed = Fleet.cargoUsed(ship);
+      const wageLine = ship.isPlayer
+        ? ""
+        : ` · Heuer/Tag ~${Math.round(WAGE_BASE + WAGE_CARGO_RATE * Fleet.cargoValue(ship))} G`;
+      html += `<div class="kontor-city">
+        <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
+        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}</span>
+      </div>`;
+    });
+    if (Fleet.allShips().length === 0) {
+      html += `<p class="hint">Keine Schiffe mehr im Dienst.</p>`;
+    }
+    el.fleetShips.innerHTML = html;
+
+    const kontorCities = CITIES.filter((c) => Kontor.level(c.id) > 0);
+    let buyHtml = "";
+    if (kontorCities.length === 0) {
+      buyHtml = `<p class="hint">Noch kein Kontor gebaut — dort entstehen künftige Werften.</p>`;
+    } else {
+      const cost = Fleet.shipCost();
+      kontorCities.forEach((city) => {
+        buyHtml += `<div class="kontor-city">
+          <span>${city.name} (Kontor Stufe ${Kontor.level(city.id)})</span>
+          <button data-city="${city.id}" ${Fleet.gold() < cost ? "disabled" : ""}>Kaufen (${cost} G)</button>
+        </div>`;
+      });
+    }
+    el.fleetBuy.innerHTML = buyHtml;
+    el.fleetBuy.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.buyShip && callbacks.buyShip(btn.dataset.city));
+    });
+
+    const ransoms = Fleet.ransoms();
+    let ransomHtml = "";
+    if (ransoms.length === 0) {
+      ransomHtml = `<p class="hint">Keine offenen Forderungen.</p>`;
+    } else {
+      ransoms.forEach((r) => {
+        ransomHtml += `<div class="kontor-city">
+          <span>${r.shipName} (Kapitän ${r.captain}) — fällig bis Tag ${r.deadlineDay}</span>
+          <button data-ransom="${r.id}" ${Fleet.gold() < r.amount ? "disabled" : ""}>Lösegeld zahlen (${r.amount} G)</button>
+        </div>`;
+      });
+    }
+    el.fleetRansoms.innerHTML = ransomHtml;
+    el.fleetRansoms.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.payRansom && callbacks.payRansom(Number(btn.dataset.ransom)));
     });
   }
 
@@ -232,6 +310,7 @@ const UI = (() => {
     renderCargoBar();
     renderMarket();
     renderKontor();
+    renderFleet();
   }
 
   return {

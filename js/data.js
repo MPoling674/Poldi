@@ -29,6 +29,18 @@ const GOODS = [
 
 const HOME_CITY_ID = "luebeck";
 
+// Flotte: kaufbare NPC-Schiffe, Heuer, Verlustrisiko
+const NPC_SHIP_BASE = { cargoCapacity: 80, cannons: 1, speedBonus: 0 };
+const SHIP_BASE_COST = 1000; // Kosten = SHIP_BASE_COST * aktuelle Schiffsanzahl
+const WAGE_BASE = 3; // Gulden/Tag Grundheuer je NPC-Schiff
+const WAGE_CARGO_RATE = 0.03; // + 3% des aktuellen Ladungswerts/Tag
+const DESTRUCTION_CHANCE = 0.25; // Anteil der Niederlagen, die zum Totalverlust führen
+const RANSOM_DEADLINE_DAYS = 15;
+const CAPTAIN_NAMES = [
+  "Hinrich Voss", "Tönnies Bruhn", "Cord Wessels", "Marten Hoyer",
+  "Gerd Lindeman", "Otto Kranz", "Wulf Segeberg", "Diderik Pahl",
+];
+
 function getCity(cityId) {
   return CITIES.find((c) => c.id === cityId);
 }

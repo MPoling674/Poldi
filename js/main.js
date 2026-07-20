@@ -6,15 +6,27 @@ const Game = (() => {
 
   let day = 1;
   let pendingPirateResolve = null;
+  let tickScheduled = false;
 
   function currentDay() {
     return day;
   }
 
+  // Stellt sicher, dass niemals zwei parallele Tick-Ketten laufen
+  // (z.B. wenn ein Import/Kauf passiert, während bereits eine Reise tickt).
+  function scheduleTick() {
+    if (tickScheduled) return;
+    tickScheduled = true;
+    setTimeout(() => {
+      tickScheduled = false;
+      dayTick();
+    }, SAIL_STEP_MS);
+  }
+
   function buildPayload() {
     return {
       day,
-      ship: Ship.serialize(),
+      fleet: Fleet.serialize(),
       market: Market.serialize(),
       kontor: Kontor.serialize(),
     };
@@ -25,11 +37,14 @@ const Game = (() => {
   }
 
   function applyPayload(payload) {
-    if (!payload || !payload.ship || !payload.market || !payload.kontor || typeof payload.day !== "number") {
+    if (!payload || !payload.market || !payload.kontor || typeof payload.day !== "number") {
+      throw new Error("Ungültiges Spielstand-Format.");
+    }
+    if (!payload.fleet && !payload.ship) {
       throw new Error("Ungültiges Spielstand-Format.");
     }
     day = payload.day;
-    Ship.restore(payload.ship);
+    Fleet.restore(payload.fleet || payload.ship);
     Market.restore(payload.market);
     Kontor.restore(payload.kontor);
   }
@@ -45,11 +60,19 @@ const Game = (() => {
     }
   }
 
+  function anySailing() {
+    return Fleet.allShips().some((s) => s.sailing);
+  }
+
   function resumeIfSailing() {
-    if (!Ship.get().sailing) return;
-    UI.showTravelOverlay(getCity(Ship.get().destinationCityId).name);
-    UI.updateTravelBar(Ship.progressRatio());
-    setTimeout(sailStep, SAIL_STEP_MS);
+    const player = Fleet.playerShip();
+    if (player && player.sailing) {
+      UI.showTravelOverlay(getCity(player.destinationCityId).name);
+      UI.updateTravelBar(Fleet.progressRatio(player));
+    }
+    if (anySailing()) {
+      scheduleTick();
+    }
   }
 
   function handleSaveNow() {
@@ -74,7 +97,7 @@ const Game = (() => {
   }
 
   function handleImportSave(jsonText) {
-    if (Ship.get().sailing) {
+    if (anySailing()) {
       pendingPirateResolve = null;
       UI.hidePirateModal();
       UI.hideTravelOverlay();
@@ -100,7 +123,7 @@ const Game = (() => {
     UI.hideTravelOverlay();
     localStorage.removeItem(SAVE_KEY);
     day = 1;
-    Ship.init();
+    Fleet.init();
     Market.init();
     Kontor.init();
     UI.renderAll();
@@ -108,40 +131,136 @@ const Game = (() => {
     UI.log("Ein neues Spiel beginnt in Lübeck.");
   }
 
-  function sailStep() {
-    if (!Ship.get().sailing) return;
+  function npcSellAll(ship) {
+    let totalRevenue = 0;
+    Object.keys(ship.cargo).forEach((goodId) => {
+      const qty = ship.cargo[goodId];
+      const res = Market.sell(ship.currentCityId, goodId, qty);
+      if (res.ok) {
+        Fleet.addGold(res.revenue);
+        Fleet.removeCargo(ship, goodId, qty);
+        totalRevenue += res.revenue;
+      }
+    });
+    return totalRevenue;
+  }
+
+  function npcPickPurchase(ship) {
+    let bestGoodId = null;
+    let bestRatio = Infinity;
+    GOODS.forEach((good) => {
+      if (Market.availableStock(ship.currentCityId, good.id) <= 0) return;
+      const ratio = Market.buyPrice(ship.currentCityId, good.id) / good.basePrice;
+      if (ratio < bestRatio) {
+        bestRatio = ratio;
+        bestGoodId = good.id;
+      }
+    });
+    return bestGoodId;
+  }
+
+  function npcBuy(ship, goodId) {
+    if (!goodId) return 0;
+    const price = Market.buyPrice(ship.currentCityId, goodId);
+    const maxByBudget = Math.floor((Fleet.gold() * 0.5) / price);
+    const maxByCargo = Fleet.cargoFree(ship);
+    const maxByStock = Market.availableStock(ship.currentCityId, goodId);
+    const qty = Math.max(0, Math.min(maxByBudget, maxByCargo, maxByStock));
+    if (qty <= 0) return 0;
+    const res = Market.buy(ship.currentCityId, goodId, qty);
+    if (!res.ok) return 0;
+    Fleet.addGold(-res.cost);
+    Fleet.addCargo(ship, goodId, qty);
+    return qty;
+  }
+
+  function npcPickDestination(ship, boughtGoodId) {
+    const others = CITIES.filter((c) => c.id !== ship.currentCityId);
+    if (boughtGoodId) {
+      const matches = others.filter((c) => c.imports.includes(boughtGoodId));
+      if (matches.length > 0) return matches[Math.floor(Math.random() * matches.length)].id;
+    }
+    return others[Math.floor(Math.random() * others.length)].id;
+  }
+
+  function npcArrive(ship) {
+    const revenue = npcSellAll(ship);
+    if (revenue > 0) {
+      UI.log(`${ship.name} verkauft Ladung in ${getCity(ship.currentCityId).name} für ${revenue} Gulden.`);
+    }
+    const goodId = npcPickPurchase(ship);
+    const qty = npcBuy(ship, goodId);
+    if (qty > 0) {
+      UI.log(`${ship.name} kauft ${qty}x ${getGood(goodId).name} in ${getCity(ship.currentCityId).name}.`);
+    }
+    const destId = npcPickDestination(ship, goodId);
+    const res = Fleet.startVoyage(ship, destId);
+    if (res.ok) {
+      UI.log(`${ship.name} sticht in See, Ziel: ${getCity(destId).name} (${res.totalDays} Tage Fahrt).`);
+    }
+  }
+
+  function dayTick() {
+    if (!anySailing()) return;
     Market.tick();
     day += 1;
-    const result = Ship.advanceDay();
-    UI.updateTravelBar(Ship.progressRatio());
-    UI.renderHUD();
 
-    if (result.arrived) {
-      UI.hideTravelOverlay();
-      UI.log(`Das Schiff hat ${getCity(Ship.get().currentCityId).name} erreicht.`);
-      UI.renderAll();
-      saveGame();
-      return;
+    const sailingShips = Fleet.allShips().filter((s) => s.sailing);
+    for (const ship of sailingShips) {
+      const result = Fleet.advanceDay(ship);
+      if (ship.isPlayer) {
+        UI.updateTravelBar(Fleet.progressRatio(ship));
+      }
+
+      if (result.arrived) {
+        if (ship.isPlayer) {
+          UI.hideTravelOverlay();
+          UI.log(`Das Schiff hat ${getCity(ship.currentCityId).name} erreicht.`);
+        } else {
+          npcArrive(ship);
+        }
+        continue;
+      }
+
+      if (Pirates.rollEncounter(ship)) {
+        if (ship.isPlayer) {
+          UI.showPirateModal("Ein fremdes Segel nähert sich schnell! Was tut Ihr?");
+          pendingPirateResolve = () => {
+            scheduleTick();
+          };
+          return;
+        }
+        const result = Pirates.resolveFlee(ship, day);
+        UI.log(`${ship.name}: ${result.message}`);
+      }
     }
 
-    if (Pirates.rollEncounter()) {
-      UI.showPirateModal("Ein fremdes Segel nähert sich schnell! Was tut Ihr?");
-      pendingPirateResolve = () => {
-        setTimeout(sailStep, SAIL_STEP_MS);
-      };
-      return;
-    }
+    Fleet.allShips().forEach((ship) => {
+      if (ship.isPlayer) return;
+      const wage = Math.round(WAGE_BASE + WAGE_CARGO_RATE * Fleet.cargoValue(ship));
+      Fleet.addGold(-wage);
+    });
 
-    setTimeout(sailStep, SAIL_STEP_MS);
+    Fleet.expireRansoms(day).forEach((ransom) => {
+      UI.log(`Die Lösegeldfrist für ${ransom.shipName} ist abgelaufen — die Crew ist verloren.`);
+    });
+
+    UI.renderAll();
+    saveGame();
+
+    if (anySailing()) {
+      scheduleTick();
+    }
   }
 
   function handleCityClick(cityId) {
-    const ship = Ship.get();
+    const ship = Fleet.playerShip();
+    if (!ship) return UI.log("Du hast derzeit kein eigenes Schiff. Kaufe eines in einer Stadt mit Kontor.");
     if (ship.sailing) {
       UI.log("Das Schiff ist bereits auf See.");
       return;
     }
-    const res = Ship.startVoyage(cityId);
+    const res = Fleet.startVoyage(ship, cityId);
     if (!res.ok) {
       UI.log(res.reason);
       return;
@@ -150,32 +269,34 @@ const Game = (() => {
     UI.showTravelOverlay(getCity(cityId).name);
     UI.updateTravelBar(0);
     UI.renderAll();
-    setTimeout(sailStep, SAIL_STEP_MS);
+    scheduleTick();
   }
 
   function handleBuy(goodId, qty) {
-    const ship = Ship.get();
+    const ship = Fleet.playerShip();
+    if (!ship) return UI.log("Du hast derzeit kein eigenes Schiff.");
     if (ship.sailing) return UI.log("Handel ist nur im Hafen möglich.");
-    if (qty > Ship.cargoFree()) return UI.log("Nicht genug Frachtraum an Bord.");
+    if (qty > Fleet.cargoFree(ship)) return UI.log("Nicht genug Frachtraum an Bord.");
     const estCost = Math.round(Market.buyPrice(ship.currentCityId, goodId) * qty);
-    if (ship.gold < estCost) return UI.log("Nicht genug Gold für diesen Kauf.");
+    if (Fleet.gold() < estCost) return UI.log("Nicht genug Gold für diesen Kauf.");
     const res = Market.buy(ship.currentCityId, goodId, qty);
     if (!res.ok) return UI.log(res.reason);
-    ship.gold -= res.cost;
-    Ship.addCargo(goodId, qty);
+    Fleet.addGold(-res.cost);
+    Fleet.addCargo(ship, goodId, qty);
     UI.log(`${qty}x ${getGood(goodId).name} gekauft für ${res.cost} Gulden.`);
     UI.renderAll();
     saveGame();
   }
 
   function handleSell(goodId, qty) {
-    const ship = Ship.get();
+    const ship = Fleet.playerShip();
+    if (!ship) return UI.log("Du hast derzeit kein eigenes Schiff.");
     if (ship.sailing) return UI.log("Handel ist nur im Hafen möglich.");
-    if (Ship.cargoQty(goodId) < qty) return UI.log("Nicht genug Ware an Bord.");
+    if (Fleet.cargoQty(ship, goodId) < qty) return UI.log("Nicht genug Ware an Bord.");
     const res = Market.sell(ship.currentCityId, goodId, qty);
     if (!res.ok) return UI.log(res.reason);
-    ship.gold += res.revenue;
-    Ship.removeCargo(goodId, qty);
+    Fleet.addGold(res.revenue);
+    Fleet.removeCargo(ship, goodId, qty);
     UI.log(`${qty}x ${getGood(goodId).name} verkauft für ${res.revenue} Gulden.`);
     UI.renderAll();
     saveGame();
@@ -189,7 +310,8 @@ const Game = (() => {
   }
 
   function handleStore(cityId, goodId, qty) {
-    const actualQty = Math.min(qty, Ship.cargoQty(goodId));
+    const ship = Fleet.playerShip();
+    const actualQty = ship ? Math.min(qty, Fleet.cargoQty(ship, goodId)) : 0;
     if (actualQty <= 0) return UI.log("Nichts an Bord, das eingelagert werden könnte.");
     const res = Kontor.storeGood(cityId, goodId, actualQty);
     UI.log(res.ok ? `${actualQty}x ${getGood(goodId).name} im Kontor ${getCity(cityId).name} eingelagert.` : res.reason);
@@ -214,8 +336,31 @@ const Game = (() => {
     saveGame();
   }
 
+  function handleBuyShip(cityId) {
+    const res = Fleet.buyShip(cityId);
+    if (!res.ok) {
+      UI.log(res.reason);
+      return;
+    }
+    UI.log(`${res.ship.name} (Kapitän ${res.ship.captain}) in ${getCity(cityId).name} in Dienst gestellt (${res.cost} Gulden).`);
+    if (!res.ship.isPlayer) {
+      npcArrive(res.ship); // erste Ladung einkaufen und sofort in See stechen
+      scheduleTick();
+    }
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handlePayRansom(ransomId) {
+    const res = Fleet.payRansom(ransomId);
+    UI.log(res.ok ? `Lösegeld für ${res.ransom.shipName} bezahlt — die Crew ist frei.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
   function handlePirateChoice(choice) {
-    const result = choice === "fight" ? Pirates.resolveFight() : Pirates.resolveFlee();
+    const ship = Fleet.playerShip();
+    const result = choice === "fight" ? Pirates.resolveFight(ship, day) : Pirates.resolveFlee(ship, day);
     UI.log(result.message);
     UI.hidePirateModal();
     UI.renderAll();
@@ -233,7 +378,7 @@ const Game = (() => {
   }
 
   function init() {
-    Ship.init();
+    Fleet.init();
     Market.init();
     Kontor.init();
     day = 1;
@@ -249,6 +394,8 @@ const Game = (() => {
     UI.on("store", handleStore);
     UI.on("withdraw", handleWithdraw);
     UI.on("buyCannon", handleBuyCannon);
+    UI.on("buyShip", handleBuyShip);
+    UI.on("payRansom", handlePayRansom);
     UI.on("pirateChoice", handlePirateChoice);
     UI.on("saveNow", handleSaveNow);
     UI.on("exportSave", handleExportSave);
