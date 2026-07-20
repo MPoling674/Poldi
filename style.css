@@ -1,0 +1,108 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Verdana, sans-serif;
+  background: #0d1b2a;
+  color: #e8dfc9;
+}
+
+#hud {
+  display: flex;
+  gap: 24px;
+  padding: 10px 20px;
+  background: #14283d;
+  border-bottom: 2px solid #3a5a40;
+}
+
+.hud-item { display: flex; flex-direction: column; font-size: 13px; }
+.hud-item .label { color: #9fb4c7; font-size: 11px; text-transform: uppercase; }
+.hud-item span:last-child { font-size: 16px; font-weight: bold; color: #f2c14e; }
+
+#game {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+#map-canvas {
+  background: #1b3a5c radial-gradient(ellipse at center, #24507a 0%, #0d1b2a 90%);
+  border: 2px solid #3a5a40;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#sidebar {
+  flex: 1;
+  min-width: 340px;
+  background: #14283d;
+  border: 2px solid #3a5a40;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tab-btn {
+  flex: 1;
+  padding: 8px;
+  background: #1b3a5c;
+  border: 1px solid #3a5a40;
+  color: #e8dfc9;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.tab-btn.active { background: #3a5a40; color: #fff; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+h2 { margin-top: 0; color: #f2c14e; font-size: 16px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 5px 4px; text-align: right; border-bottom: 1px solid #26425f; }
+th:first-child, td:first-child { text-align: left; }
+td input { width: 50px; background: #0d1b2a; color: #e8dfc9; border: 1px solid #3a5a40; border-radius: 3px; padding: 2px; }
+
+button {
+  background: #3a5a40;
+  color: #fff;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+button:hover { background: #4f7a56; }
+button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
+
+.hint { font-size: 12px; color: #9fb4c7; }
+
+#event-log { list-style: none; padding: 0; margin: 0; font-size: 13px; max-height: 480px; overflow-y: auto; }
+#event-log li { padding: 4px 0; border-bottom: 1px solid #26425f; }
+
+#kontor-info .kontor-city { padding: 8px 0; border-bottom: 1px solid #26425f; display: flex; justify-content: space-between; align-items: center; }
+
+.modal, #travel-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal { z-index: 60; }
+#travel-overlay { z-index: 50; }
+.modal.hidden, #travel-overlay.hidden { display: none; }
+
+.modal-box, .travel-box {
+  background: #14283d;
+  border: 2px solid #f2c14e;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  text-align: center;
+}
+
+.modal-actions { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+
+.travel-bar { width: 260px; height: 12px; background: #0d1b2a; border-radius: 6px; overflow: hidden; margin-top: 12px; }
+#travel-bar-fill { height: 100%; width: 0%; background: #f2c14e; transition: width 0.3s; }
