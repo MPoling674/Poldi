@@ -174,7 +174,7 @@ const GameMap = (() => {
     drawLandmasses();
     const player = Fleet.playerShip();
     drawRoutes();
-    drawCities(player.currentCityId, player.destinationCityId);
+    drawCities(player ? player.currentCityId : null, player ? player.destinationCityId : null);
     drawShips();
   }
 

@@ -376,7 +376,11 @@ const Game = (() => {
   }
 
   function renderLoop() {
-    GameMap.render();
+    try {
+      GameMap.render();
+    } catch (e) {
+      console.error("Fehler beim Kartenrendern:", e);
+    }
     requestAnimationFrame(renderLoop);
   }
 
