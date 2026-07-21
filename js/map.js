@@ -4,6 +4,7 @@ const GameMap = (() => {
   let canvas, ctx, tooltip, wrap;
   let onCityClickCallback = null;
   let hoveredCityId = null;
+  let touchSelectedCityId = null;
 
   function init(canvasEl) {
     canvas = canvasEl;
@@ -13,6 +14,7 @@ const GameMap = (() => {
     canvas.addEventListener("click", handleClick);
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseleave", hideTooltip);
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
   }
 
   function onCityClick(cb) {
@@ -33,6 +35,7 @@ const GameMap = (() => {
 
   function hideTooltip() {
     hoveredCityId = null;
+    touchSelectedCityId = null;
     tooltip.classList.add("hidden");
   }
 
@@ -72,6 +75,22 @@ const GameMap = (() => {
     return html;
   }
 
+  function positionTooltip(clientX, clientY) {
+    const wrapRect = wrap.getBoundingClientRect();
+    let left = clientX - wrapRect.left + 16;
+    let top = clientY - wrapRect.top + 16;
+    const maxLeft = wrap.clientWidth - tooltip.offsetWidth - 4;
+    const maxTop = wrap.clientHeight - tooltip.offsetHeight - 4;
+    tooltip.style.left = Math.max(4, Math.min(left, maxLeft)) + "px";
+    tooltip.style.top = Math.max(4, Math.min(top, maxTop)) + "px";
+  }
+
+  function showTooltipFor(city, clientX, clientY) {
+    tooltip.innerHTML = tooltipContent(city);
+    tooltip.classList.remove("hidden");
+    positionTooltip(clientX, clientY);
+  }
+
   function handleMouseMove(evt) {
     const hit = cityAt(evt);
     if (!hit) {
@@ -79,15 +98,27 @@ const GameMap = (() => {
       return;
     }
     hoveredCityId = hit.id;
-    tooltip.innerHTML = tooltipContent(hit);
-    tooltip.classList.remove("hidden");
-    const wrapRect = wrap.getBoundingClientRect();
-    let left = evt.clientX - wrapRect.left + 16;
-    let top = evt.clientY - wrapRect.top + 16;
-    const maxLeft = wrap.clientWidth - tooltip.offsetWidth - 4;
-    const maxTop = wrap.clientHeight - tooltip.offsetHeight - 4;
-    tooltip.style.left = Math.max(4, Math.min(left, maxLeft)) + "px";
-    tooltip.style.top = Math.max(4, Math.min(top, maxTop)) + "px";
+    showTooltipFor(hit, evt.clientX, evt.clientY);
+  }
+
+  // Touch: erstes Antippen einer Stadt zeigt nur die Info-Blase,
+  // ein zweites Antippen derselben Stadt bestaetigt die Reise dorthin.
+  function handleTouchStart(evt) {
+    const touch = evt.touches[0];
+    if (!touch) return;
+    const hit = cityAt({ clientX: touch.clientX, clientY: touch.clientY });
+    if (!hit) {
+      hideTooltip();
+      return;
+    }
+    evt.preventDefault();
+    if (touchSelectedCityId === hit.id) {
+      hideTooltip();
+      if (onCityClickCallback) onCityClickCallback(hit.id);
+      return;
+    }
+    touchSelectedCityId = hit.id;
+    showTooltipFor(hit, touch.clientX, touch.clientY);
   }
 
   function drawLandmasses() {

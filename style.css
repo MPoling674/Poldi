@@ -9,7 +9,8 @@ body {
 
 #hud {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 10px 24px;
   padding: 10px 20px;
   background: #14283d;
   border-bottom: 2px solid #3a5a40;
@@ -98,11 +99,15 @@ body {
   display: flex;
   gap: 12px;
   padding: 12px;
+  align-items: flex-start;
 }
 
 #map-wrap {
   position: relative;
   line-height: 0;
+  width: 100%;
+  max-width: 760px;
+  flex-shrink: 0;
 }
 
 #map-canvas {
@@ -110,6 +115,14 @@ body {
   border: 2px solid #3a5a40;
   border-radius: 6px;
   cursor: pointer;
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: manipulation;
+}
+
+.table-scroll {
+  overflow-x: auto;
 }
 
 #city-tooltip {
@@ -249,3 +262,47 @@ button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
 
 .travel-bar { width: 260px; height: 12px; background: #0d1b2a; border-radius: 6px; overflow: hidden; margin-top: 12px; }
 #travel-bar-fill { height: 100%; width: 0%; background: #f2c14e; transition: width 0.3s; }
+
+/* Mobil/Tablet: Karte und Seitenleiste untereinander statt nebeneinander */
+@media (max-width: 900px) {
+  #game {
+    flex-direction: column;
+  }
+  #map-wrap {
+    max-width: 100%;
+  }
+  #sidebar {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* Schmale Handy-Displays: kompaktere HUD, Buttons und Schrift */
+@media (max-width: 480px) {
+  #hud {
+    gap: 6px 14px;
+    padding: 8px 12px;
+  }
+  .hud-item { font-size: 11px; }
+  .hud-item span:last-child { font-size: 14px; }
+
+  #cargo-bar {
+    padding: 6px 12px;
+    flex-wrap: wrap;
+  }
+
+  #game { padding: 8px; gap: 8px; }
+
+  #sidebar { padding: 8px; }
+
+  .tabs { flex-wrap: wrap; }
+  .tab-btn { flex: 1 1 30%; font-size: 12px; padding: 8px 4px; }
+
+  table { font-size: 11px; }
+  th, td { padding: 5px 3px; }
+  .trade-action input { width: 32px; }
+  .trade-btn { padding: 5px 6px; font-size: 10px; }
+
+  .modal-box, .travel-box { padding: 16px; max-width: 90vw; }
+  .travel-bar { width: 100%; }
+}
