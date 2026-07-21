@@ -41,6 +41,11 @@ const HOME_CITY_ID = "luebeck";
 
 const STARTING_GOLD = 75;
 
+// Preisspanne zwischen Export- und Importstaedten je Ware (kleinere Spanne = geringere
+// Handelsspanne/Wachstumsrate). Reduziert auf ca. 1/3 der urspruenglichen Gewinnspanne.
+const EXPORT_PRICE_FACTOR = 0.85;
+const IMPORT_PRICE_FACTOR = 1.25;
+
 // Flotte: kaufbare NPC-Schiffe, Heuer, Verlustrisiko
 const NPC_SHIP_BASE = { cargoCapacity: 80, cannons: 1, speedBonus: 0 };
 const SHIP_BASE_COST = 1000; // Kosten = SHIP_BASE_COST * aktuelle Schiffsanzahl

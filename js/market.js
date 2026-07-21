@@ -4,14 +4,14 @@ const Market = (() => {
   let state = {}; // state[cityId][goodId] = { price, stock }
 
   function factorFor(city, goodId) {
-    if (city.exports.includes(goodId)) return 0.6;
-    if (city.imports.includes(goodId)) return 1.6;
+    if (city.exports.includes(goodId)) return EXPORT_PRICE_FACTOR;
+    if (city.imports.includes(goodId)) return IMPORT_PRICE_FACTOR;
     return 1.0;
   }
 
   function baselineStock(factor) {
-    if (factor <= 0.6) return 250 + Math.random() * 100; // Exportware: reichlich vorhanden
-    if (factor >= 1.6) return 15 + Math.random() * 20;   // Importware: knapp
+    if (factor <= EXPORT_PRICE_FACTOR) return 250 + Math.random() * 100; // Exportware: reichlich vorhanden
+    if (factor >= IMPORT_PRICE_FACTOR) return 15 + Math.random() * 20;   // Importware: knapp
     return 60 + Math.random() * 40;
   }
 
