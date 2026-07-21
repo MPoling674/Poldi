@@ -9,6 +9,7 @@ const Ledger = (() => {
       wages: 0,
       kontorUpkeep: 0,
       insurancePremiums: 0,
+      insurancePayouts: 0,
       ransoms: 0,
       shipPurchases: 0,
       kontorBuilds: 0,

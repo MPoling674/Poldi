@@ -356,13 +356,14 @@ const UI = (() => {
     wages: "Heuer",
     kontorUpkeep: "Kontor-Unterhalt",
     insurancePremiums: "Versicherungsprämien",
+    insurancePayouts: "Versicherungsleistungen (Schiffsersatz)",
     ransoms: "Lösegeld",
     shipPurchases: "Schiffskäufe",
     kontorBuilds: "Kontor-Baukosten",
     cannonPurchases: "Kanonenkäufe",
     pirateLosses: "Piratenverluste",
   };
-  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue"];
+  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
     "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses",

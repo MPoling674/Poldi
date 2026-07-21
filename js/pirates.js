@@ -22,20 +22,25 @@ const Pirates = (() => {
 
     const outcome = maybeDestroy(ship, currentDay);
     if (outcome && outcome.insured) {
+      if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
+      Ledger.record("insurancePayouts", outcome.shipValue);
+      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.` : " Es war keine Ladung an Bord.";
       return {
         won: false,
         destroyed: true,
         insured: true,
-        message: `Das Schiff ${ship.name} wurde in der Schlacht schwer beschädigt — die Versicherung ersetzt den Schaden sofort, keine Ladung an Bord verloren gegangen.`,
+        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt — die Versicherung ersetzt das Schiff sofort (Wert: ${outcome.shipValue} Gulden).${cargoNote}`,
       };
     }
     if (outcome && outcome.ransom) {
       const ransom = outcome.ransom;
+      if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
+      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
       return {
         won: false,
         destroyed: true,
         ransom,
-        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).`,
+        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}`,
       };
     }
 
@@ -66,20 +71,25 @@ const Pirates = (() => {
 
     const outcome = maybeDestroy(ship, currentDay);
     if (outcome && outcome.insured) {
+      if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
+      Ledger.record("insurancePayouts", outcome.shipValue);
+      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.` : " Es war keine Ladung an Bord.";
       return {
         fled: false,
         destroyed: true,
         insured: true,
-        message: `Das Schiff ${ship.name} wurde bei der Flucht schwer beschädigt — die Versicherung ersetzt den Schaden sofort, keine Ladung an Bord verloren gegangen.`,
+        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert — die Versicherung ersetzt das Schiff sofort (Wert: ${outcome.shipValue} Gulden).${cargoNote}`,
       };
     }
     if (outcome && outcome.ransom) {
       const ransom = outcome.ransom;
+      if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
+      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
       return {
         fled: false,
         destroyed: true,
         ransom,
-        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).`,
+        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}`,
       };
     }
 

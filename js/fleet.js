@@ -73,6 +73,17 @@ const Fleet = (() => {
     return value;
   }
 
+  // Wert der Ladung zum Einkaufspreis (statt Verkaufspreis) — fuer Verlustbuchungen,
+  // damit sie zur "Warenbestand"-Bewertung in der Bilanz passen.
+  function cargoCostValue(ship) {
+    let value = 0;
+    Object.entries(ship.cargo).forEach(([goodId, qty]) => {
+      const unitCost = avgCost(ship, goodId);
+      value += (unitCost !== null ? unitCost : Market.buyPrice(ship.currentCityId, goodId)) * qty;
+    });
+    return value;
+  }
+
   function daysFor(distance, ship) {
     const speedFactor = 1 - Math.min(0.4, ship.speedBonus * 0.1);
     return Math.max(1, Math.round((distance / PIXELS_PER_DAY) * speedFactor));
@@ -234,6 +245,7 @@ const Fleet = (() => {
   }
 
   function destroyShip(ship, currentDay) {
+    const cargoLossValue = Math.round(cargoCostValue(ship));
     if (ship.insurance && ship.insurance.active) {
       // Vollersatz: Schiff bleibt im selben Slot erhalten, nur Ladung und Fahrt werden zurueckgesetzt.
       ship.cargo = {};
@@ -242,7 +254,7 @@ const Fleet = (() => {
       ship.destinationCityId = null;
       ship.progressDays = 0;
       ship.totalDays = 0;
-      return { insured: true };
+      return { insured: true, cargoLossValue, shipValue: SHIP_BASE_COST };
     }
     state.ships = state.ships.filter((s) => s.id !== ship.id);
     const amount = Math.round(400 + ship.cargoCapacity * 3 + Math.random() * 300);
@@ -254,7 +266,7 @@ const Fleet = (() => {
       deadlineDay: currentDay + RANSOM_DEADLINE_DAYS,
     };
     state.ransoms.push(ransom);
-    return { insured: false, ransom };
+    return { insured: false, ransom, cargoLossValue };
   }
 
   function payRansom(ransomId) {
