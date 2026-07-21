@@ -143,6 +143,7 @@ const UI = (() => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${good.name}</td>
+        <td>${Market.availableStock(city.id, good.id)}</td>
         <td>${buyPrice.toFixed(1)} G</td>
         <td>
           <div class="trade-action">
@@ -151,7 +152,6 @@ const UI = (() => {
           </div>
         </td>
         <td>${sellCell}</td>
-        <td>${Market.availableStock(city.id, good.id)}</td>
         <td>
           <div class="trade-action">
             <input type="number" min="0" value="${sellDefault}" data-good="${good.id}" class="qty-input-sell">
