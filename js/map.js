@@ -140,18 +140,29 @@ const GameMap = (() => {
     CITIES.forEach((city) => {
       const isCurrent = city.id === currentCityId;
       const isDest = city.id === destinationCityId;
+      const radius = isCurrent ? 9 : 7;
+      const hasKontor = Kontor.level(city.id) > 0;
+
+      if (hasKontor) {
+        ctx.beginPath();
+        ctx.arc(city.x, city.y, radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = "#6fcf97";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
       ctx.beginPath();
-      ctx.arc(city.x, city.y, isCurrent ? 9 : 7, 0, Math.PI * 2);
+      ctx.arc(city.x, city.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = isCurrent ? "#f2c14e" : isDest ? "#e07a5f" : "#e8dfc9";
       ctx.fill();
       ctx.strokeStyle = "#0d1b2a";
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = "#e8dfc9";
-      ctx.font = "13px Segoe UI";
+      ctx.fillStyle = hasKontor ? "#6fcf97" : "#e8dfc9";
+      ctx.font = hasKontor ? "bold 13px Segoe UI" : "13px Segoe UI";
       ctx.textAlign = "center";
-      ctx.fillText(city.name, city.x, city.y - 14);
+      ctx.fillText(city.name, city.x, city.y - 16);
     });
   }
 
