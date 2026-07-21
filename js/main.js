@@ -363,6 +363,9 @@ const Game = (() => {
     const result = choice === "fight" ? Pirates.resolveFight(ship, day) : Pirates.resolveFlee(ship, day);
     UI.log(result.message);
     UI.hidePirateModal();
+    if (result.destroyed) {
+      UI.hideTravelOverlay();
+    }
     UI.renderAll();
     saveGame();
     if (pendingPirateResolve) {
