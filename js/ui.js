@@ -368,6 +368,24 @@ const UI = (() => {
     "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses",
   ];
 
+  // Wert der noch unverkauften Ladung an Bord aller Schiffe, zum Einkaufspreis
+  // (nicht zum aktuellen Marktpreis) — das gekaufte Gold steckt ja noch in dieser Ware.
+  function shipboardInventoryValue() {
+    let total = 0;
+    const rows = [];
+    Fleet.allShips().forEach((ship) => {
+      Object.keys(ship.cargo).forEach((goodId) => {
+        const qty = ship.cargo[goodId];
+        if (qty <= 0) return;
+        const unitCost = Fleet.avgCost(ship, goodId);
+        const value = unitCost !== null ? unitCost * qty : Market.buyPrice(ship.currentCityId, goodId) * qty;
+        total += value;
+        rows.push({ label: `${getGood(goodId).name} (${ship.name}, ${qty}x)`, value: Math.round(value) });
+      });
+    });
+    return { total: Math.round(total), rows };
+  }
+
   function renderBilanz() {
     const summary = Ledger.summary();
     let totalIncome = 0;
@@ -380,6 +398,18 @@ const UI = (() => {
       html += `<div class="tooltip-row"><span>${LEDGER_LABELS[cat]}</span><span>${amount} G</span></div>`;
     });
 
+    const inventory = shipboardInventoryValue();
+    html += "<h3>Warenbestand an Bord (Einkaufswert)</h3>";
+    if (inventory.rows.length === 0) {
+      html += `<p class="hint">Keine unverkaufte Ladung an Bord.</p>`;
+    } else {
+      inventory.rows.forEach((row) => {
+        html += `<div class="tooltip-row"><span>${row.label}</span><span>${row.value} G</span></div>`;
+      });
+      html += `<div class="tooltip-row"><span><b>Summe Warenbestand</b></span><span><b>${inventory.total} G</b></span></div>`;
+    }
+    totalIncome += inventory.total;
+
     html += "<h3>Aufwendungen</h3>";
     LEDGER_EXPENSE_CATEGORIES.forEach((cat) => {
       const amount = Math.round(summary[cat] || 0);
@@ -388,7 +418,7 @@ const UI = (() => {
     });
 
     const saldo = totalIncome - totalExpense;
-    html += `<h3>Saldo</h3><div class="tooltip-row"><span>${saldo >= 0 ? "Gewinn" : "Verlust"} seit Spielbeginn</span><span>${saldo} G</span></div>`;
+    html += `<h3>Saldo</h3><div class="tooltip-row"><span>${saldo >= 0 ? "Gewinn" : "Verlust"} seit Spielbeginn (inkl. Warenbestand)</span><span>${saldo} G</span></div>`;
     el.bilanzInfo.innerHTML = html;
   }
 
