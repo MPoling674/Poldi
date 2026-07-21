@@ -21,6 +21,7 @@ const Fleet = (() => {
       progressDays: 0,
       totalDays: 0,
       cargo: {},
+      cargoCost: {},
       cargoCapacity: 100,
       cannons: 2,
       speedBonus: 0,
@@ -120,17 +121,39 @@ const Fleet = (() => {
     return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
   }
 
-  function addCargo(ship, goodId, qty) {
-    ship.cargo[goodId] = (ship.cargo[goodId] || 0) + qty;
+  // Gewichteter Durchschnittspreis, wenn zwei Bestände (z.B. Bord + Lager) zusammengeführt werden.
+  function mergeCost(qtyA, costA, qtyB, costB) {
+    const totalQty = qtyA + qtyB;
+    if (totalQty <= 0) return 0;
+    return (qtyA * costA + qtyB * costB) / totalQty;
+  }
+
+  // unitPrice ist optional: fehlt er (z.B. bei Verlagerungen ohne Preisangabe),
+  // bleibt der bisherige Einkaufspreis unveraendert.
+  function addCargo(ship, goodId, qty, unitPrice) {
+    if (!ship.cargoCost) ship.cargoCost = {};
+    const oldQty = ship.cargo[goodId] || 0;
+    if (unitPrice !== undefined) {
+      const oldCost = ship.cargoCost[goodId] || 0;
+      ship.cargoCost[goodId] = mergeCost(oldQty, oldCost, qty, unitPrice);
+    }
+    ship.cargo[goodId] = oldQty + qty;
   }
 
   function removeCargo(ship, goodId, qty) {
     ship.cargo[goodId] = Math.max(0, (ship.cargo[goodId] || 0) - qty);
-    if (ship.cargo[goodId] === 0) delete ship.cargo[goodId];
+    if (ship.cargo[goodId] === 0) {
+      delete ship.cargo[goodId];
+      if (ship.cargoCost) delete ship.cargoCost[goodId];
+    }
   }
 
   function cargoQty(ship, goodId) {
     return ship.cargo[goodId] || 0;
+  }
+
+  function avgCost(ship, goodId) {
+    return (ship.cargoCost && ship.cargoCost[goodId]) || null;
   }
 
   function networth() {
@@ -165,6 +188,7 @@ const Fleet = (() => {
       progressDays: 0,
       totalDays: 0,
       cargo: {},
+      cargoCost: {},
       cargoCapacity: NPC_SHIP_BASE.cargoCapacity,
       cannons: NPC_SHIP_BASE.cannons,
       speedBonus: NPC_SHIP_BASE.speedBonus,
@@ -221,13 +245,16 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {} }],
         ransoms: [],
       };
       delete state.ships[0].gold;
       return;
     }
     state = saved;
+    state.ships.forEach((ship) => {
+      if (!ship.cargoCost) ship.cargoCost = {};
+    });
   }
 
   return {
@@ -250,6 +277,8 @@ const Fleet = (() => {
     addCargo,
     removeCargo,
     cargoQty,
+    avgCost,
+    mergeCost,
     networth,
     shipCost,
     buyShip,

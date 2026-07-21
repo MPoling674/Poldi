@@ -170,7 +170,7 @@ const Game = (() => {
     const res = Market.buy(ship.currentCityId, goodId, qty);
     if (!res.ok) return 0;
     Fleet.addGold(-res.cost);
-    Fleet.addCargo(ship, goodId, qty);
+    Fleet.addCargo(ship, goodId, qty, res.cost / qty);
     return qty;
   }
 
@@ -282,7 +282,7 @@ const Game = (() => {
     const res = Market.buy(ship.currentCityId, goodId, qty);
     if (!res.ok) return UI.log(res.reason);
     Fleet.addGold(-res.cost);
-    Fleet.addCargo(ship, goodId, qty);
+    Fleet.addCargo(ship, goodId, qty, res.cost / qty);
     UI.log(`${qty}x ${getGood(goodId).name} gekauft für ${res.cost} Gulden.`);
     UI.renderAll();
     saveGame();
@@ -295,9 +295,15 @@ const Game = (() => {
     if (Fleet.cargoQty(ship, goodId) < qty) return UI.log("Nicht genug Ware an Bord.");
     const res = Market.sell(ship.currentCityId, goodId, qty);
     if (!res.ok) return UI.log(res.reason);
+    const boughtAt = Fleet.avgCost(ship, goodId);
     Fleet.addGold(res.revenue);
     Fleet.removeCargo(ship, goodId, qty);
-    UI.log(`${qty}x ${getGood(goodId).name} verkauft für ${res.revenue} Gulden.`);
+    let profitNote = "";
+    if (boughtAt !== null) {
+      const profit = Math.round(res.revenue - boughtAt * qty);
+      profitNote = profit >= 0 ? ` (Gewinn: ${profit} G)` : ` (Verlust: ${-profit} G)`;
+    }
+    UI.log(`${qty}x ${getGood(goodId).name} verkauft für ${res.revenue} Gulden${profitNote}.`);
     UI.renderAll();
     saveGame();
   }

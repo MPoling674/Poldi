@@ -30,7 +30,8 @@ const Kontor = (() => {
     if (level(cityId) >= 3) return { ok: false, reason: "Kontor bereits auf Höchststufe." };
     if (Fleet.gold() < cost) return { ok: false, reason: "Nicht genug Gold." };
     Fleet.addGold(-cost);
-    if (!kontors[cityId]) kontors[cityId] = { level: 0, storage: {} };
+    if (!kontors[cityId]) kontors[cityId] = { level: 0, storage: {}, storageCost: {} };
+    if (!kontors[cityId].storageCost) kontors[cityId].storageCost = {};
     kontors[cityId].level += 1;
     return { ok: true, cost };
   }
@@ -41,25 +42,43 @@ const Kontor = (() => {
     if (!kontors[cityId] || kontors[cityId].level === 0) return { ok: false, reason: "Kein Kontor in dieser Stadt." };
     if (Fleet.cargoQty(ship, goodId) < qty) return { ok: false, reason: "Nicht genug Ware an Bord." };
     if (storageUsed(cityId) + qty > capacity(cityId)) return { ok: false, reason: "Lagerhaus ist voll." };
+    const kontor = kontors[cityId];
+    if (!kontor.storageCost) kontor.storageCost = {};
+    const shipCost = Fleet.avgCost(ship, goodId); // null, falls unbekannt (z.B. alter Spielstand)
+    const oldQty = kontor.storage[goodId] || 0;
+    if (shipCost !== null) {
+      const oldCost = kontor.storageCost[goodId] || 0;
+      kontor.storageCost[goodId] = Fleet.mergeCost(oldQty, oldCost, qty, shipCost);
+    }
     Fleet.removeCargo(ship, goodId, qty);
-    kontors[cityId].storage[goodId] = (kontors[cityId].storage[goodId] || 0) + qty;
+    kontor.storage[goodId] = oldQty + qty;
     return { ok: true };
   }
 
   function withdrawGood(cityId, goodId, qty) {
     const ship = Fleet.playerShip();
     if (!ship) return { ok: false, reason: "Kein eigenes Schiff vorhanden." };
-    const store = kontors[cityId] && kontors[cityId].storage;
+    const kontor = kontors[cityId];
+    const store = kontor && kontor.storage;
     if (!store || (store[goodId] || 0) < qty) return { ok: false, reason: "Nicht genug Ware im Lager." };
     if (Fleet.cargoFree(ship) < qty) return { ok: false, reason: "Nicht genug Platz an Bord." };
+    if (!kontor.storageCost) kontor.storageCost = {};
+    const storedCost = kontor.storageCost[goodId]; // undefined bei altem Lagerbestand ohne Preisdaten
     store[goodId] -= qty;
-    if (store[goodId] === 0) delete store[goodId];
-    Fleet.addCargo(ship, goodId, qty);
+    if (store[goodId] === 0) {
+      delete store[goodId];
+      delete kontor.storageCost[goodId];
+    }
+    Fleet.addCargo(ship, goodId, qty, storedCost);
     return { ok: true };
   }
 
   function storageOf(cityId) {
     return (kontors[cityId] && kontors[cityId].storage) || {};
+  }
+
+  function storageCostOf(cityId) {
+    return (kontors[cityId] && kontors[cityId].storageCost) || {};
   }
 
   function cannonCost() {
@@ -83,7 +102,10 @@ const Kontor = (() => {
   }
 
   function restore(saved) {
-    kontors = saved;
+    kontors = saved || {};
+    Object.values(kontors).forEach((kontor) => {
+      if (!kontor.storageCost) kontor.storageCost = {};
+    });
   }
 
   return {
@@ -96,6 +118,7 @@ const Kontor = (() => {
     storeGood,
     withdrawGood,
     storageOf,
+    storageCostOf,
     cannonCost,
     buyCannon,
     serialize,

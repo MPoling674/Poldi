@@ -97,7 +97,11 @@ const UI = (() => {
       return;
     }
     el.cargoBarItems.innerHTML = goodIds
-      .map((goodId) => `<span class="cargo-chip">${getGood(goodId).name} <b>${ship.cargo[goodId]}</b></span>`)
+      .map((goodId) => {
+        const avgCost = Fleet.avgCost(ship, goodId);
+        const costLabel = avgCost !== null ? ` <span class="cost-note">(Ø ${avgCost.toFixed(1)} G)</span>` : "";
+        return `<span class="cargo-chip">${getGood(goodId).name} <b>${ship.cargo[goodId]}</b>${costLabel}</span>`;
+      })
       .join("");
   }
 
@@ -122,24 +126,27 @@ const UI = (() => {
     GOODS.forEach((good) => {
       const entry = Market.getEntry(city.id, good.id);
       const cargoQty = Fleet.cargoQty(ship, good.id);
-      let defaultQty;
-      if (cargoQty > 0) {
-        // Verkaufsfall: die an Bord liegende Menge vorauswählen (gedeckelt bei 10).
-        defaultQty = Math.min(cargoQty, 10);
-      } else {
-        // Kauffall: die tatsächlich leistbare/mögliche Menge vorauswählen (gedeckelt bei 10).
-        const buyPrice = Market.buyPrice(city.id, good.id);
-        const maxAffordable = Math.floor(Fleet.gold() / buyPrice);
-        defaultQty = Math.max(0, Math.min(10, maxAffordable, Fleet.cargoFree(ship), Market.availableStock(city.id, good.id)));
+
+      const buyPrice = Market.buyPrice(city.id, good.id);
+      const maxAffordable = Math.floor(Fleet.gold() / buyPrice);
+      const buyDefault = Math.max(0, Math.min(10, maxAffordable, Fleet.cargoFree(ship), Market.availableStock(city.id, good.id)));
+      const sellDefault = Math.min(cargoQty, 10);
+
+      const boughtAt = Fleet.avgCost(ship, good.id);
+      let sellCell = `${Market.sellPrice(city.id, good.id).toFixed(1)} G`;
+      if (cargoQty > 0 && boughtAt !== null) {
+        sellCell += `<br><span class="cost-note">Ø gekauft ${boughtAt.toFixed(1)} G</span>`;
       }
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${good.name}</td>
-        <td>${Market.buyPrice(city.id, good.id).toFixed(1)} G</td>
-        <td>${Market.sellPrice(city.id, good.id).toFixed(1)} G</td>
-        <td>${Market.availableStock(city.id, good.id)}</td>
-        <td><input type="number" min="0" value="${defaultQty}" data-good="${good.id}" class="qty-input"></td>
+        <td>${buyPrice.toFixed(1)} G</td>
+        <td><input type="number" min="0" value="${buyDefault}" data-good="${good.id}" class="qty-input-buy"></td>
         <td><button data-action="buy" data-good="${good.id}">Kaufen</button></td>
+        <td>${sellCell}</td>
+        <td>${Market.availableStock(city.id, good.id)}</td>
+        <td><input type="number" min="0" value="${sellDefault}" data-good="${good.id}" class="qty-input-sell"></td>
         <td><button data-action="sell" data-good="${good.id}">Verkaufen</button></td>
       `;
       el.marketTbody.appendChild(tr);
@@ -148,10 +155,12 @@ const UI = (() => {
     el.marketTbody.querySelectorAll("button").forEach((btn) => {
       btn.addEventListener("click", () => {
         const goodId = btn.dataset.good;
-        const input = el.marketTbody.querySelector(`.qty-input[data-good="${goodId}"]`);
+        const action = btn.dataset.action;
+        const inputClass = action === "buy" ? "qty-input-buy" : "qty-input-sell";
+        const input = el.marketTbody.querySelector(`.${inputClass}[data-good="${goodId}"]`);
         const qty = Math.max(1, parseInt(input.value, 10) || 1);
-        if (btn.dataset.action === "buy" && callbacks.buy) callbacks.buy(goodId, qty);
-        if (btn.dataset.action === "sell" && callbacks.sell) callbacks.sell(goodId, qty);
+        if (action === "buy" && callbacks.buy) callbacks.buy(goodId, qty);
+        if (action === "sell" && callbacks.sell) callbacks.sell(goodId, qty);
       });
     });
   }
