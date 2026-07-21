@@ -54,6 +54,18 @@ const GameMap = (() => {
         const stock = Market.availableStock(city.id, goodId);
         html += `<div class="tooltip-row"><span>${good.name}</span><span>${buy}/${sell} G · Lager ${stock}</span></div>`;
       });
+
+      const player = Fleet.playerShip();
+      const cargoGoodIds = player ? Object.keys(player.cargo).filter((id) => player.cargo[id] > 0) : [];
+      const ownCargoGoods = cargoGoodIds.filter((id) => !relevantGoods.includes(id));
+      if (ownCargoGoods.length > 0) {
+        html += `<div class="tooltip-hint">Deine Ladung hier:</div>`;
+        ownCargoGoods.forEach((goodId) => {
+          const good = getGood(goodId);
+          const sell = Market.sellPrice(city.id, goodId).toFixed(1);
+          html += `<div class="tooltip-row"><span>${good.name} (${player.cargo[goodId]}x)</span><span>${sell} G</span></div>`;
+        });
+      }
     } else {
       html += `<div class="tooltip-hint">Kein Kontor hier — Preise erst vor Ort sichtbar.</div>`;
     }
