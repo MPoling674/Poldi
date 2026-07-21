@@ -121,36 +121,60 @@ const GameMap = (() => {
     showTooltipFor(hit, touch.clientX, touch.clientY);
   }
 
+  // Zeichnet ein geschlossenes Vieleck aus [x,y]-Punkten (sicher gegen Selbstueberschneidung,
+  // solange die Punkte in einer Richtung um den Umriss herum angegeben werden).
+  function fillPolygon(points) {
+    ctx.beginPath();
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i][0], points[i][1]);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawLandmasses() {
     ctx.fillStyle = "#2d4a34";
-    // Britische Inseln
-    ctx.beginPath();
-    ctx.ellipse(40, 440, 55, 90, -0.2, 0, Math.PI * 2);
-    ctx.fill();
-    // Kontinent (Flandern bis Ostsee)
-    ctx.beginPath();
-    ctx.moveTo(120, 560);
-    ctx.lineTo(120, 380);
-    ctx.bezierCurveTo(250, 340, 380, 360, 560, 330);
-    ctx.lineTo(560, 560);
-    ctx.closePath();
-    ctx.fill();
+
+    // Großbritannien
+    fillPolygon([
+      [55, 245], [72, 252], [68, 282], [85, 305], [100, 325], [120, 355],
+      [115, 385], [105, 405], [108, 422], [95, 438], [75, 452], [55, 460],
+      [38, 445], [35, 415], [28, 385], [35, 355], [20, 320], [28, 285], [18, 258], [55, 245],
+    ]);
+
+    // Irland
+    fillPolygon([
+      [2, 345], [20, 338], [30, 358], [26, 385], [32, 408],
+      [14, 430], [-6, 418], [-10, 388], [-6, 362], [2, 345],
+    ]);
+
+    // Kontinent: Flandern -> Nordsee -> Ostsee -> Baltikum -> Russland (ohne Juetland)
+    // Kanal-Abstand zu Britannien: Kueste beginnt erst bei x=160 (statt 110), damit die Insel frei bleibt.
+    fillPolygon([
+      [160, 560], [160, 440], [165, 415], [178, 400], [210, 405], [245, 385],
+      [280, 365], [312, 348], [332, 328], [345, 310], [340, 293], [360, 300],
+      [382, 292], [400, 302], [412, 318], [422, 333], [445, 336], [466, 326],
+      [486, 320], [505, 306], [525, 296], [546, 285], [566, 276], [586, 266],
+      [606, 255], [617, 234], [628, 216], [630, 195], [636, 158], [652, 156],
+      [672, 150], [692, 145], [712, 140], [730, 138], [760, 135],
+      [760, 560], [160, 560],
+    ]);
+
+    // Jütland (Daenemark) — separate Halbinsel, ueberlappt den Kontinent an der Basis
+    fillPolygon([
+      [340, 293], [330, 258], [335, 224], [346, 194], [361, 164],
+      [378, 168], [386, 196], [378, 226], [386, 252], [400, 280], [396, 302], [340, 293],
+    ]);
+
     // Skandinavien
-    ctx.beginPath();
-    ctx.moveTo(150, 0);
-    ctx.lineTo(340, 0);
-    ctx.bezierCurveTo(320, 100, 260, 180, 200, 220);
-    ctx.bezierCurveTo(160, 150, 140, 60, 150, 0);
-    ctx.closePath();
-    ctx.fill();
-    // Baltikum / Russland
-    ctx.beginPath();
-    ctx.moveTo(560, 0);
-    ctx.lineTo(760, 0);
-    ctx.lineTo(760, 220);
-    ctx.bezierCurveTo(680, 200, 600, 260, 560, 330);
-    ctx.closePath();
-    ctx.fill();
+    fillPolygon([
+      [258, 0], [222, 18], [196, 44], [202, 68], [180, 88], [190, 113],
+      [172, 136], [184, 160], [168, 184], [180, 208], [196, 224], [212, 244],
+      [232, 256], [256, 260], [280, 252], [300, 238], [316, 218], [330, 198],
+      [320, 174], [335, 148], [324, 122], [344, 98], [338, 72], [358, 48],
+      [352, 22], [372, 4], [258, 0],
+    ]);
   }
 
   function drawRoutes(shipCityId) {
