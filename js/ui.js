@@ -142,12 +142,20 @@ const UI = (() => {
       tr.innerHTML = `
         <td>${good.name}</td>
         <td>${buyPrice.toFixed(1)} G</td>
-        <td><input type="number" min="0" value="${buyDefault}" data-good="${good.id}" class="qty-input-buy"></td>
-        <td><button data-action="buy" data-good="${good.id}">Kaufen</button></td>
+        <td>
+          <div class="trade-action">
+            <input type="number" min="0" value="${buyDefault}" data-good="${good.id}" class="qty-input-buy">
+            <button class="trade-btn" data-action="buy" data-good="${good.id}">Kaufen</button>
+          </div>
+        </td>
         <td>${sellCell}</td>
         <td>${Market.availableStock(city.id, good.id)}</td>
-        <td><input type="number" min="0" value="${sellDefault}" data-good="${good.id}" class="qty-input-sell"></td>
-        <td><button data-action="sell" data-good="${good.id}">Verkaufen</button></td>
+        <td>
+          <div class="trade-action">
+            <input type="number" min="0" value="${sellDefault}" data-good="${good.id}" class="qty-input-sell">
+            <button class="trade-btn" data-action="sell" data-good="${good.id}">Verkaufen</button>
+          </div>
+        </td>
       `;
       el.marketTbody.appendChild(tr);
     });

@@ -177,10 +177,30 @@ body {
 
 h2 { margin-top: 0; color: #f2c14e; font-size: 16px; }
 
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { padding: 5px 4px; text-align: right; border-bottom: 1px solid #26425f; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 6px 5px; text-align: right; border-bottom: 1px solid #26425f; vertical-align: middle; }
 th:first-child, td:first-child { text-align: left; }
+th { color: #9fb4c7; font-size: 11px; text-transform: uppercase; font-weight: normal; }
+#market-tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.03); }
+#market-tbody tr:hover { background: rgba(242, 193, 78, 0.08); }
 td input { width: 50px; background: #0d1b2a; color: #e8dfc9; border: 1px solid #3a5a40; border-radius: 3px; padding: 2px; }
+
+.trade-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.trade-action input {
+  width: 38px;
+  text-align: center;
+  padding: 3px 2px;
+}
+.trade-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
 
 button {
   background: #3a5a40;
