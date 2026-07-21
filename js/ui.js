@@ -121,13 +121,24 @@ const UI = (() => {
     el.marketTbody.innerHTML = "";
     GOODS.forEach((good) => {
       const entry = Market.getEntry(city.id, good.id);
+      const cargoQty = Fleet.cargoQty(ship, good.id);
+      let defaultQty;
+      if (cargoQty > 0) {
+        // Verkaufsfall: die an Bord liegende Menge vorauswählen (gedeckelt bei 10).
+        defaultQty = Math.min(cargoQty, 10);
+      } else {
+        // Kauffall: die tatsächlich leistbare/mögliche Menge vorauswählen (gedeckelt bei 10).
+        const buyPrice = Market.buyPrice(city.id, good.id);
+        const maxAffordable = Math.floor(Fleet.gold() / buyPrice);
+        defaultQty = Math.max(0, Math.min(10, maxAffordable, Fleet.cargoFree(ship), Market.availableStock(city.id, good.id)));
+      }
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${good.name}</td>
         <td>${Market.buyPrice(city.id, good.id).toFixed(1)} G</td>
         <td>${Market.sellPrice(city.id, good.id).toFixed(1)} G</td>
         <td>${Market.availableStock(city.id, good.id)}</td>
-        <td><input type="number" min="1" value="10" data-good="${good.id}" class="qty-input"></td>
+        <td><input type="number" min="0" value="${defaultQty}" data-good="${good.id}" class="qty-input"></td>
         <td><button data-action="buy" data-good="${good.id}">Kaufen</button></td>
         <td><button data-action="sell" data-good="${good.id}">Verkaufen</button></td>
       `;
