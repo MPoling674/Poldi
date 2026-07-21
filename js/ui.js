@@ -23,6 +23,8 @@ const UI = (() => {
     el.fleetBuy = document.getElementById("fleet-buy");
     el.fleetRansoms = document.getElementById("fleet-ransoms");
 
+    el.bilanzInfo = document.getElementById("bilanz-info");
+
     el.eventLog = document.getElementById("event-log");
     el.toastContainer = document.getElementById("toast-container");
 
@@ -233,22 +235,36 @@ const UI = (() => {
     return `vor Anker in ${getCity(ship.currentCityId).name}`;
   }
 
+  function insuranceStatusLine(ship) {
+    if (ship.insurance && ship.insurance.active) {
+      return `Versichert (Verlängerung Tag ${ship.insurance.dueDay})`;
+    }
+    return `Unversichert`;
+  }
+
   function renderFleet() {
     let html = "";
     Fleet.allShips().forEach((ship) => {
       const cargoUsed = Fleet.cargoUsed(ship);
       const wageLine = ship.isPlayer
         ? ""
-        : ` · Heuer/Tag ~${Math.round(WAGE_BASE + WAGE_CARGO_RATE * Fleet.cargoValue(ship))} G`;
+        : ` · Heuer/Tag ~${Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship))} G`;
+      const insured = ship.insurance && ship.insurance.active;
+      const insuranceCost = Fleet.insuranceCost(Game.currentDay());
       html += `<div class="kontor-city">
         <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
-        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}</span>
+        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}<br>
+        ${insuranceStatusLine(ship)}</span>
+        ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Versichern (${insuranceCost} G)</button>`}
       </div>`;
     });
     if (Fleet.allShips().length === 0) {
       html += `<p class="hint">Keine Schiffe mehr im Dienst.</p>`;
     }
     el.fleetShips.innerHTML = html;
+    el.fleetShips.querySelectorAll("button[data-insure]").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.buyInsurance && callbacks.buyInsurance(Number(btn.dataset.insure)));
+    });
 
     const kontorCities = CITIES.filter((c) => Kontor.level(c.id) > 0);
     let buyHtml = "";
@@ -333,12 +349,56 @@ const UI = (() => {
     el.saveStatus.textContent = message;
   }
 
+  const LEDGER_LABELS = {
+    tradeRevenue: "Handelserlöse",
+    tradeCost: "Wareneinkauf",
+    harborFees: "Hafengebühren",
+    wages: "Heuer",
+    kontorUpkeep: "Kontor-Unterhalt",
+    insurancePremiums: "Versicherungsprämien",
+    ransoms: "Lösegeld",
+    shipPurchases: "Schiffskäufe",
+    kontorBuilds: "Kontor-Baukosten",
+    cannonPurchases: "Kanonenkäufe",
+    pirateLosses: "Piratenverluste",
+  };
+  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue"];
+  const LEDGER_EXPENSE_CATEGORIES = [
+    "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
+    "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses",
+  ];
+
+  function renderBilanz() {
+    const summary = Ledger.summary();
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    let html = "<h3>Erträge</h3>";
+    LEDGER_INCOME_CATEGORIES.forEach((cat) => {
+      const amount = Math.round(summary[cat] || 0);
+      totalIncome += amount;
+      html += `<div class="tooltip-row"><span>${LEDGER_LABELS[cat]}</span><span>${amount} G</span></div>`;
+    });
+
+    html += "<h3>Aufwendungen</h3>";
+    LEDGER_EXPENSE_CATEGORIES.forEach((cat) => {
+      const amount = Math.round(summary[cat] || 0);
+      totalExpense += amount;
+      html += `<div class="tooltip-row"><span>${LEDGER_LABELS[cat]}</span><span>${amount} G</span></div>`;
+    });
+
+    const saldo = totalIncome - totalExpense;
+    html += `<h3>Saldo</h3><div class="tooltip-row"><span>${saldo >= 0 ? "Gewinn" : "Verlust"} seit Spielbeginn</span><span>${saldo} G</span></div>`;
+    el.bilanzInfo.innerHTML = html;
+  }
+
   function renderAll() {
     renderHUD();
     renderCargoBar();
     renderMarket();
     renderKontor();
     renderFleet();
+    renderBilanz();
   }
 
   return {

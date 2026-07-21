@@ -34,6 +34,7 @@
       <button class="tab-btn" data-tab="kontor">Kontor</button>
       <button class="tab-btn" data-tab="log">Log</button>
       <button class="tab-btn" data-tab="fleet">Flotte</button>
+      <button class="tab-btn" data-tab="bilanz">Bilanz</button>
       <button class="tab-btn" data-tab="save">Spielstand</button>
     </div>
 
@@ -68,6 +69,12 @@
       <div id="fleet-buy"></div>
       <h2>Lösegeldforderungen</h2>
       <div id="fleet-ransoms"></div>
+    </section>
+
+    <section id="tab-bilanz" class="tab-panel">
+      <h2>Ergebnisrechnung</h2>
+      <p class="hint">Kumulierte Erträge und Aufwendungen seit Spielbeginn.</p>
+      <div id="bilanz-info"></div>
     </section>
 
     <section id="tab-save" class="tab-panel">
@@ -107,6 +114,7 @@
 </div>
 
 <script src="js/data.js"></script>
+<script src="js/ledger.js"></script>
 <script src="js/market.js"></script>
 <script src="js/fleet.js"></script>
 <script src="js/kontor.js"></script>

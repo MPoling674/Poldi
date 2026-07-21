@@ -148,13 +148,16 @@ body {
   font-size: 13px;
 }
 
-#city-tooltip .tooltip-row {
+#city-tooltip .tooltip-row, #bilanz-info .tooltip-row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   border-bottom: 1px solid #26425f;
-  padding: 1px 0;
+  padding: 3px 0;
 }
+
+#bilanz-info h3 { color: #f2c14e; font-size: 14px; margin: 14px 0 4px; }
+#bilanz-info h3:first-child { margin-top: 0; }
 
 #city-tooltip .tooltip-hint {
   color: #9fb4c7;

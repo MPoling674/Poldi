@@ -155,8 +155,8 @@ const GameMap = (() => {
       [160, 560], [160, 440], [165, 415], [178, 400], [210, 405], [245, 385],
       [280, 365], [312, 348], [332, 328], [345, 310], [340, 293], [360, 300],
       [382, 292], [400, 302], [412, 318], [422, 333], [445, 336], [466, 326],
-      [486, 320], [505, 306], [525, 296], [546, 285], [566, 276], [586, 266],
-      [606, 255], [617, 234], [628, 216], [630, 195], [636, 158], [652, 156],
+      [486, 320], [505, 308], [516, 288], [532, 268], [550, 256], [567, 253],
+      [582, 260], [592, 256], [606, 255], [617, 234], [628, 216], [630, 195], [636, 158], [652, 156],
       [672, 150], [692, 145], [712, 140], [730, 138], [760, 135],
       [760, 560], [160, 560],
     ]);
@@ -175,6 +175,24 @@ const GameMap = (() => {
       [320, 174], [335, 148], [324, 122], [344, 98], [338, 72], [358, 48],
       [352, 22], [372, 4], [258, 0],
     ]);
+
+    // Gotland (Insel in der Ostsee, bei Visby)
+    fillPolygon([
+      [534, 203], [548, 208], [553, 222], [548, 236], [536, 233], [527, 220], [534, 203],
+    ]);
+  }
+
+  // Duenne Fluss-Linien fuer landeinwaerts liegende Staedte (rein optisch).
+  function drawRivers() {
+    ctx.strokeStyle = "rgba(120, 170, 200, 0.6)";
+    ctx.lineWidth = 2;
+    CITIES.forEach((city) => {
+      if (!city.river) return;
+      ctx.beginPath();
+      ctx.moveTo(city.x, city.y);
+      ctx.lineTo(city.river.mouthX, city.river.mouthY);
+      ctx.stroke();
+    });
   }
 
   function drawRoutes(shipCityId) {
@@ -250,6 +268,7 @@ const GameMap = (() => {
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawLandmasses();
+    drawRivers();
     const player = Fleet.playerShip();
     drawRoutes();
     drawCities(player ? player.currentCityId : null, player ? player.destinationCityId : null);

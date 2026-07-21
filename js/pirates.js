@@ -20,8 +20,17 @@ const Pirates = (() => {
       return { won: true, destroyed: false, message: `Die Piraten wurden abgewehrt! Erbeutet: ${loot} Gulden.` };
     }
 
-    const ransom = maybeDestroy(ship, currentDay);
-    if (ransom) {
+    const outcome = maybeDestroy(ship, currentDay);
+    if (outcome && outcome.insured) {
+      return {
+        won: false,
+        destroyed: true,
+        insured: true,
+        message: `Das Schiff ${ship.name} wurde in der Schlacht schwer beschädigt — die Versicherung ersetzt den Schaden sofort, keine Ladung an Bord verloren gegangen.`,
+      };
+    }
+    if (outcome && outcome.ransom) {
+      const ransom = outcome.ransom;
       return {
         won: false,
         destroyed: true,
@@ -32,6 +41,7 @@ const Pirates = (() => {
 
     const goldLoss = Math.round(Fleet.gold() * (0.1 + Math.random() * 0.15));
     Fleet.addGold(-goldLoss);
+    Ledger.record("pirateLosses", goldLoss);
     const cargoGoodIds = Object.keys(ship.cargo);
     let cargoMsg = "";
     if (cargoGoodIds.length > 0) {
@@ -54,8 +64,17 @@ const Pirates = (() => {
       return { fled: true, destroyed: false, message: "Die Flucht gelang, die Piraten bleiben zurück." };
     }
 
-    const ransom = maybeDestroy(ship, currentDay);
-    if (ransom) {
+    const outcome = maybeDestroy(ship, currentDay);
+    if (outcome && outcome.insured) {
+      return {
+        fled: false,
+        destroyed: true,
+        insured: true,
+        message: `Das Schiff ${ship.name} wurde bei der Flucht schwer beschädigt — die Versicherung ersetzt den Schaden sofort, keine Ladung an Bord verloren gegangen.`,
+      };
+    }
+    if (outcome && outcome.ransom) {
+      const ransom = outcome.ransom;
       return {
         fled: false,
         destroyed: true,

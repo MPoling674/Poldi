@@ -10,6 +10,16 @@ const CITIES = [
   { id: "reval",    name: "Reval",    x: 630, y: 160, exports: ["getreide", "holz", "eisen"],        imports: ["tuch", "bier"] },
   { id: "danzig",   name: "Danzig",   x: 500, y: 290, exports: ["getreide", "holz", "bernstein"],    imports: ["tuch", "bier", "salz"] },
   { id: "nowgorod", name: "Nowgorod", x: 730, y: 140, exports: ["pelze", "wachs", "honig"],          imports: ["tuch", "salz", "wein"] },
+
+  { id: "rostock",    name: "Rostock",    x: 465, y: 318, exports: ["getreide", "holz"],          imports: ["tuch", "salz"] },
+  { id: "stettin",    name: "Stettin",    x: 536, y: 282, exports: ["getreide", "holz", "bernstein"], imports: ["tuch", "bier"] },
+  { id: "konigsberg", name: "Königsberg", x: 578, y: 270, exports: ["bernstein", "getreide"],      imports: ["tuch", "wein"] },
+  { id: "bremen",     name: "Bremen",     x: 300, y: 400, exports: ["bier", "tuch"],              imports: ["fisch", "wein"], river: { mouthX: 272, mouthY: 368 } },
+  { id: "luneburg",   name: "Lüneburg",   x: 400, y: 390, exports: ["salz"],                      imports: ["getreide", "holz"], river: { mouthX: 360, mouthY: 355 } },
+  { id: "groningen",  name: "Groningen",  x: 240, y: 415, exports: ["getreide", "holz"],          imports: ["tuch", "bier"] },
+  { id: "dorpat",     name: "Dorpat",     x: 615, y: 195, exports: ["getreide", "holz"],          imports: ["tuch", "salz"] },
+  { id: "visby",      name: "Visby",      x: 540, y: 218, exports: ["wachs", "honig"],            imports: ["tuch", "eisen"] },
+  { id: "stockholm",  name: "Stockholm",  x: 290, y: 222, exports: ["eisen", "holz"],             imports: ["tuch", "salz"] },
 ];
 
 const GOODS = [
@@ -29,17 +39,30 @@ const GOODS = [
 
 const HOME_CITY_ID = "luebeck";
 
+const STARTING_GOLD = 75;
+
 // Flotte: kaufbare NPC-Schiffe, Heuer, Verlustrisiko
 const NPC_SHIP_BASE = { cargoCapacity: 80, cannons: 1, speedBonus: 0 };
 const SHIP_BASE_COST = 1000; // Kosten = SHIP_BASE_COST * aktuelle Schiffsanzahl
 const WAGE_BASE = 3; // Gulden/Tag Grundheuer je NPC-Schiff
 const WAGE_CARGO_RATE = 0.03; // + 3% des aktuellen Ladungswerts/Tag
+const WAGE_STRENGTH_RATE = 1; // + 1 G/Tag je Punkt "Stärke" (Kanonen/Groesse)
 const DESTRUCTION_CHANCE = 0.25; // Anteil der Niederlagen, die zum Totalverlust führen
 const RANSOM_DEADLINE_DAYS = 15;
 const CAPTAIN_NAMES = [
   "Hinrich Voss", "Tönnies Bruhn", "Cord Wessels", "Marten Hoyer",
   "Gerd Lindeman", "Otto Kranz", "Wulf Segeberg", "Diderik Pahl",
 ];
+
+// Wirtschaft: Versicherung, Hafengebühren, Kontor-Unterhalt
+const YEAR_LENGTH_DAYS = 360;
+const INSURANCE_ANNUAL_COST = 25;
+const HARBOR_FEE_RATE = 0.015;
+const KONTOR_UPKEEP_PER_LEVEL = 2; // Gulden/Tag je Kontor-Stufe
+
+function shipStrength(ship) {
+  return ship.cannons * 3 + ship.cargoCapacity * 0.1;
+}
 
 function getCity(cityId) {
   return CITIES.find((c) => c.id === cityId);

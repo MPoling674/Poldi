@@ -4,7 +4,7 @@ const Fleet = (() => {
   const PIXELS_PER_DAY = 40;
 
   let state = {
-    gold: 800,
+    gold: STARTING_GOLD,
     ships: [makeFlagship()],
     ransoms: [],
   };
@@ -25,11 +25,12 @@ const Fleet = (() => {
       cargoCapacity: 100,
       cannons: 2,
       speedBonus: 0,
+      insurance: null,
     };
   }
 
   function init() {
-    state = { gold: 800, ships: [makeFlagship()], ransoms: [] };
+    state = { gold: STARTING_GOLD, ships: [makeFlagship()], ransoms: [] };
   }
 
   function playerShip() {
@@ -192,12 +193,57 @@ const Fleet = (() => {
       cargoCapacity: NPC_SHIP_BASE.cargoCapacity,
       cannons: NPC_SHIP_BASE.cannons,
       speedBonus: NPC_SHIP_BASE.speedBonus,
+      insurance: null,
     };
     state.ships.push(ship);
     return { ok: true, cost, ship };
   }
 
+  // Anteiliger Beitrag fuer den Rest des laufenden Spieljahres (feste Jahresgrenzen ab Tag 1).
+  function insuranceCost(currentDay) {
+    const daysIntoYear = (currentDay - 1) % YEAR_LENGTH_DAYS;
+    const daysRemaining = YEAR_LENGTH_DAYS - daysIntoYear;
+    return Math.max(1, Math.round(INSURANCE_ANNUAL_COST * (daysRemaining / YEAR_LENGTH_DAYS)));
+  }
+
+  function nextYearBoundary(currentDay) {
+    const daysIntoYear = (currentDay - 1) % YEAR_LENGTH_DAYS;
+    return currentDay + (YEAR_LENGTH_DAYS - daysIntoYear);
+  }
+
+  function buyInsurance(ship, currentDay) {
+    if (ship.insurance && ship.insurance.active) return { ok: false, reason: "Schiff ist bereits versichert." };
+    const cost = insuranceCost(currentDay);
+    if (state.gold < cost) return { ok: false, reason: "Nicht genug Gold für die Versicherungsprämie." };
+    state.gold -= cost;
+    ship.insurance = { active: true, dueDay: nextYearBoundary(currentDay) };
+    return { ok: true, cost };
+  }
+
+  // Wird taeglich pro Schiff geprueft: faellige Verlaengerung abbuchen oder Police erloeschen lassen.
+  function checkInsuranceRenewal(ship, currentDay) {
+    if (!ship.insurance || !ship.insurance.active) return null;
+    if (currentDay < ship.insurance.dueDay) return null;
+    if (state.gold >= INSURANCE_ANNUAL_COST) {
+      state.gold -= INSURANCE_ANNUAL_COST;
+      ship.insurance.dueDay += YEAR_LENGTH_DAYS;
+      return { renewed: true, cost: INSURANCE_ANNUAL_COST };
+    }
+    ship.insurance.active = false;
+    return { renewed: false };
+  }
+
   function destroyShip(ship, currentDay) {
+    if (ship.insurance && ship.insurance.active) {
+      // Vollersatz: Schiff bleibt im selben Slot erhalten, nur Ladung und Fahrt werden zurueckgesetzt.
+      ship.cargo = {};
+      ship.cargoCost = {};
+      ship.sailing = false;
+      ship.destinationCityId = null;
+      ship.progressDays = 0;
+      ship.totalDays = 0;
+      return { insured: true };
+    }
     state.ships = state.ships.filter((s) => s.id !== ship.id);
     const amount = Math.round(400 + ship.cargoCapacity * 3 + Math.random() * 300);
     const ransom = {
@@ -208,7 +254,7 @@ const Fleet = (() => {
       deadlineDay: currentDay + RANSOM_DEADLINE_DAYS,
     };
     state.ransoms.push(ransom);
-    return ransom;
+    return { insured: false, ransom };
   }
 
   function payRansom(ransomId) {
@@ -245,7 +291,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {} }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -254,6 +300,7 @@ const Fleet = (() => {
     state = saved;
     state.ships.forEach((ship) => {
       if (!ship.cargoCost) ship.cargoCost = {};
+      if (ship.insurance === undefined) ship.insurance = null;
     });
   }
 
@@ -282,6 +329,9 @@ const Fleet = (() => {
     networth,
     shipCost,
     buyShip,
+    insuranceCost,
+    buyInsurance,
+    checkInsuranceRenewal,
     destroyShip,
     payRansom,
     expireRansoms,

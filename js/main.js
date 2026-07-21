@@ -29,6 +29,7 @@ const Game = (() => {
       fleet: Fleet.serialize(),
       market: Market.serialize(),
       kontor: Kontor.serialize(),
+      ledger: Ledger.serialize(),
     };
   }
 
@@ -47,6 +48,7 @@ const Game = (() => {
     Fleet.restore(payload.fleet || payload.ship);
     Market.restore(payload.market);
     Kontor.restore(payload.kontor);
+    Ledger.restore(payload.ledger);
   }
 
   function loadGame() {
@@ -126,6 +128,7 @@ const Game = (() => {
     Fleet.init();
     Market.init();
     Kontor.init();
+    Ledger.init();
     UI.renderAll();
     UI.setSaveStatus("Neues Spiel gestartet.");
     UI.log("Ein neues Spiel beginnt in Lübeck.");
@@ -137,9 +140,12 @@ const Game = (() => {
       const qty = ship.cargo[goodId];
       const res = Market.sell(ship.currentCityId, goodId, qty);
       if (res.ok) {
-        Fleet.addGold(res.revenue);
+        const fee = Math.round(res.revenue * HARBOR_FEE_RATE);
+        Fleet.addGold(res.revenue - fee);
         Fleet.removeCargo(ship, goodId, qty);
-        totalRevenue += res.revenue;
+        Ledger.record("tradeRevenue", res.revenue);
+        Ledger.record("harborFees", fee);
+        totalRevenue += res.revenue - fee;
       }
     });
     return totalRevenue;
@@ -161,7 +167,7 @@ const Game = (() => {
 
   function npcBuy(ship, goodId) {
     if (!goodId) return 0;
-    const price = Market.buyPrice(ship.currentCityId, goodId);
+    const price = Market.buyPrice(ship.currentCityId, goodId) * (1 + HARBOR_FEE_RATE);
     const maxByBudget = Math.floor((Fleet.gold() * 0.5) / price);
     const maxByCargo = Fleet.cargoFree(ship);
     const maxByStock = Market.availableStock(ship.currentCityId, goodId);
@@ -169,8 +175,11 @@ const Game = (() => {
     if (qty <= 0) return 0;
     const res = Market.buy(ship.currentCityId, goodId, qty);
     if (!res.ok) return 0;
-    Fleet.addGold(-res.cost);
+    const fee = Math.round(res.cost * HARBOR_FEE_RATE);
+    Fleet.addGold(-res.cost - fee);
     Fleet.addCargo(ship, goodId, qty, res.cost / qty);
+    Ledger.record("tradeCost", res.cost);
+    Ledger.record("harborFees", fee);
     return qty;
   }
 
@@ -237,8 +246,30 @@ const Game = (() => {
 
     Fleet.allShips().forEach((ship) => {
       if (ship.isPlayer) return;
-      const wage = Math.round(WAGE_BASE + WAGE_CARGO_RATE * Fleet.cargoValue(ship));
+      const wage = Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship));
       Fleet.addGold(-wage);
+      Ledger.record("wages", wage);
+    });
+
+    let kontorUpkeepTotal = 0;
+    CITIES.forEach((city) => {
+      const level = Kontor.level(city.id);
+      if (level > 0) kontorUpkeepTotal += KONTOR_UPKEEP_PER_LEVEL * level;
+    });
+    if (kontorUpkeepTotal > 0) {
+      Fleet.addGold(-kontorUpkeepTotal);
+      Ledger.record("kontorUpkeep", kontorUpkeepTotal);
+    }
+
+    Fleet.allShips().forEach((ship) => {
+      const renewal = Fleet.checkInsuranceRenewal(ship, day);
+      if (!renewal) return;
+      if (renewal.renewed) {
+        Ledger.record("insurancePremiums", renewal.cost);
+        UI.log(`Versicherung für ${ship.name} um ein Jahr verlängert (${renewal.cost} Gulden).`);
+      } else {
+        UI.log(`Versicherungsschutz für ${ship.name} erloschen — nicht genug Gold zur Verlängerung.`);
+      }
     });
 
     Fleet.expireRansoms(day).forEach((ransom) => {
@@ -277,13 +308,16 @@ const Game = (() => {
     if (!ship) return UI.log("Du hast derzeit kein eigenes Schiff.");
     if (ship.sailing) return UI.log("Handel ist nur im Hafen möglich.");
     if (qty > Fleet.cargoFree(ship)) return UI.log("Nicht genug Frachtraum an Bord.");
-    const estCost = Math.round(Market.buyPrice(ship.currentCityId, goodId) * qty);
-    if (Fleet.gold() < estCost) return UI.log("Nicht genug Gold für diesen Kauf.");
+    const estCost = Math.round(Market.buyPrice(ship.currentCityId, goodId) * qty * (1 + HARBOR_FEE_RATE));
+    if (Fleet.gold() < estCost) return UI.log("Nicht genug Gold für diesen Kauf (inkl. Hafengebühr).");
     const res = Market.buy(ship.currentCityId, goodId, qty);
     if (!res.ok) return UI.log(res.reason);
-    Fleet.addGold(-res.cost);
+    const fee = Math.round(res.cost * HARBOR_FEE_RATE);
+    Fleet.addGold(-res.cost - fee);
     Fleet.addCargo(ship, goodId, qty, res.cost / qty);
-    UI.log(`${qty}x ${getGood(goodId).name} gekauft für ${res.cost} Gulden.`);
+    Ledger.record("tradeCost", res.cost);
+    Ledger.record("harborFees", fee);
+    UI.log(`${qty}x ${getGood(goodId).name} gekauft für ${res.cost} Gulden (+${fee} G Hafengebühr).`);
     UI.renderAll();
     saveGame();
   }
@@ -295,21 +329,26 @@ const Game = (() => {
     if (Fleet.cargoQty(ship, goodId) < qty) return UI.log("Nicht genug Ware an Bord.");
     const res = Market.sell(ship.currentCityId, goodId, qty);
     if (!res.ok) return UI.log(res.reason);
+    const fee = Math.round(res.revenue * HARBOR_FEE_RATE);
+    const netRevenue = res.revenue - fee;
     const boughtAt = Fleet.avgCost(ship, goodId);
-    Fleet.addGold(res.revenue);
+    Fleet.addGold(netRevenue);
     Fleet.removeCargo(ship, goodId, qty);
+    Ledger.record("tradeRevenue", res.revenue);
+    Ledger.record("harborFees", fee);
     let profitNote = "";
     if (boughtAt !== null) {
-      const profit = Math.round(res.revenue - boughtAt * qty);
+      const profit = Math.round(netRevenue - boughtAt * qty);
       profitNote = profit >= 0 ? ` (Gewinn: ${profit} G)` : ` (Verlust: ${-profit} G)`;
     }
-    UI.log(`${qty}x ${getGood(goodId).name} verkauft für ${res.revenue} Gulden${profitNote}.`);
+    UI.log(`${qty}x ${getGood(goodId).name} verkauft für ${res.revenue} Gulden (-${fee} G Hafengebühr)${profitNote}.`);
     UI.renderAll();
     saveGame();
   }
 
   function handleBuildKontor(cityId) {
     const res = Kontor.buildKontor(cityId);
+    if (res.ok) Ledger.record("kontorBuilds", res.cost);
     UI.log(res.ok ? `Kontor in ${getCity(cityId).name} ausgebaut (${res.cost} Gulden).` : res.reason);
     UI.renderAll();
     saveGame();
@@ -337,6 +376,7 @@ const Game = (() => {
 
   function handleBuyCannon() {
     const res = Kontor.buyCannon();
+    if (res.ok) Ledger.record("cannonPurchases", res.cost);
     UI.log(res.ok ? `Neue Kanone installiert (${res.cost} Gulden).` : res.reason);
     UI.renderAll();
     saveGame();
@@ -348,6 +388,7 @@ const Game = (() => {
       UI.log(res.reason);
       return;
     }
+    Ledger.record("shipPurchases", res.cost);
     UI.log(`${res.ship.name} (Kapitän ${res.ship.captain}) in ${getCity(cityId).name} in Dienst gestellt (${res.cost} Gulden).`);
     if (!res.ship.isPlayer) {
       npcArrive(res.ship); // erste Ladung einkaufen und sofort in See stechen
@@ -357,8 +398,19 @@ const Game = (() => {
     saveGame();
   }
 
+  function handleBuyInsurance(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.buyInsurance(ship, day);
+    if (res.ok) Ledger.record("insurancePremiums", res.cost);
+    UI.log(res.ok ? `Versicherung für ${ship.name} abgeschlossen (${res.cost} Gulden, anteilig fürs laufende Jahr).` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
   function handlePayRansom(ransomId) {
     const res = Fleet.payRansom(ransomId);
+    if (res.ok) Ledger.record("ransoms", res.ransom.amount);
     UI.log(res.ok ? `Lösegeld für ${res.ransom.shipName} bezahlt — die Crew ist frei.` : res.reason);
     UI.renderAll();
     saveGame();
@@ -394,6 +446,7 @@ const Game = (() => {
     Fleet.init();
     Market.init();
     Kontor.init();
+    Ledger.init();
     day = 1;
     loadGame();
 
@@ -408,6 +461,7 @@ const Game = (() => {
     UI.on("withdraw", handleWithdraw);
     UI.on("buyCannon", handleBuyCannon);
     UI.on("buyShip", handleBuyShip);
+    UI.on("buyInsurance", handleBuyInsurance);
     UI.on("payRansom", handlePayRansom);
     UI.on("pirateChoice", handlePirateChoice);
     UI.on("saveNow", handleSaveNow);
