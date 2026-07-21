@@ -368,8 +368,8 @@ const UI = (() => {
     "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses",
   ];
 
-  // Wert der noch unverkauften Ladung an Bord aller Schiffe, zum Einkaufspreis
-  // (nicht zum aktuellen Marktpreis) — das gekaufte Gold steckt ja noch in dieser Ware.
+  // Wert der noch unverkauften Ware zum Einkaufspreis (nicht zum aktuellen Marktpreis) —
+  // sowohl an Bord aller Schiffe als auch in allen Kontor-Lagerhäusern.
   function shipboardInventoryValue() {
     let total = 0;
     const rows = [];
@@ -381,6 +381,18 @@ const UI = (() => {
         const value = unitCost !== null ? unitCost * qty : Market.buyPrice(ship.currentCityId, goodId) * qty;
         total += value;
         rows.push({ label: `${getGood(goodId).name} (${ship.name}, ${qty}x)`, value: Math.round(value) });
+      });
+    });
+    CITIES.forEach((city) => {
+      const storage = Kontor.storageOf(city.id);
+      const storageCost = Kontor.storageCostOf(city.id);
+      Object.keys(storage).forEach((goodId) => {
+        const qty = storage[goodId];
+        if (qty <= 0) return;
+        const unitCost = storageCost[goodId];
+        const value = unitCost !== undefined ? unitCost * qty : Market.buyPrice(city.id, goodId) * qty;
+        total += value;
+        rows.push({ label: `${getGood(goodId).name} (Kontor ${city.name}, ${qty}x)`, value: Math.round(value) });
       });
     });
     return { total: Math.round(total), rows };
@@ -399,9 +411,9 @@ const UI = (() => {
     });
 
     const inventory = shipboardInventoryValue();
-    html += "<h3>Warenbestand an Bord (Einkaufswert)</h3>";
+    html += "<h3>Warenbestand — Schiffe &amp; Kontore (Einkaufswert)</h3>";
     if (inventory.rows.length === 0) {
-      html += `<p class="hint">Keine unverkaufte Ladung an Bord.</p>`;
+      html += `<p class="hint">Keine unverkaufte Ware an Bord oder im Lager.</p>`;
     } else {
       inventory.rows.forEach((row) => {
         html += `<div class="tooltip-row"><span>${row.label}</span><span>${row.value} G</span></div>`;
