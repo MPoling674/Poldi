@@ -30,10 +30,43 @@ const Kontor = (() => {
     if (level(cityId) >= 3) return { ok: false, reason: "Kontor bereits auf Höchststufe." };
     if (Fleet.gold() < cost) return { ok: false, reason: "Nicht genug Gold." };
     Fleet.addGold(-cost);
-    if (!kontors[cityId]) kontors[cityId] = { level: 0, storage: {}, storageCost: {} };
+    if (!kontors[cityId]) kontors[cityId] = { level: 0, storage: {}, storageCost: {}, loan: null };
     if (!kontors[cityId].storageCost) kontors[cityId].storageCost = {};
     kontors[cityId].level += 1;
     return { ok: true, cost };
+  }
+
+  function assetValue(cityId) {
+    return kontorValue(level(cityId));
+  }
+
+  function loanOf(cityId) {
+    return (kontors[cityId] && kontors[cityId].loan) || null;
+  }
+
+  function borrowAgainstKontor(cityId, amount) {
+    const kontor = kontors[cityId];
+    if (!kontor || kontor.level === 0) return { ok: false, reason: "Kein Kontor in dieser Stadt." };
+    if (amount <= 0) return { ok: false, reason: "Ungültiger Betrag." };
+    const currentPrincipal = (kontor.loan && kontor.loan.principal) || 0;
+    const maxLoan = assetValue(cityId) * LOAN_MAX_LTV;
+    if (currentPrincipal + amount > maxLoan) {
+      return { ok: false, reason: `Beleihungsgrenze überschritten (max. ${Math.round(maxLoan)} G).` };
+    }
+    Fleet.addGold(amount);
+    kontor.loan = { principal: currentPrincipal + amount };
+    return { ok: true, amount };
+  }
+
+  function repayKontorLoan(cityId, amount) {
+    const kontor = kontors[cityId];
+    if (!kontor || !kontor.loan) return { ok: false, reason: "Kein offener Kredit auf dieses Kontor." };
+    const actual = Math.min(amount, kontor.loan.principal, Fleet.gold());
+    if (actual <= 0) return { ok: false, reason: "Nicht genug Gold oder ungültiger Betrag." };
+    Fleet.addGold(-actual);
+    kontor.loan.principal -= actual;
+    if (kontor.loan.principal <= 0) kontor.loan = null;
+    return { ok: true, amount: actual };
   }
 
   function storeGood(cityId, goodId, qty) {
@@ -105,6 +138,7 @@ const Kontor = (() => {
     kontors = saved || {};
     Object.values(kontors).forEach((kontor) => {
       if (!kontor.storageCost) kontor.storageCost = {};
+      if (kontor.loan === undefined) kontor.loan = null;
     });
   }
 
@@ -121,6 +155,10 @@ const Kontor = (() => {
     storageCostOf,
     cannonCost,
     buyCannon,
+    assetValue,
+    loanOf,
+    borrowAgainstKontor,
+    repayKontorLoan,
     serialize,
     restore,
   };

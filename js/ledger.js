@@ -15,6 +15,7 @@ const Ledger = (() => {
       kontorBuilds: 0,
       cannonPurchases: 0,
       pirateLosses: 0,
+      loanInterest: 0,
     };
   }
 

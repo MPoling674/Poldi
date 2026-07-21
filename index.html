@@ -35,6 +35,7 @@
       <button class="tab-btn" data-tab="log">Log</button>
       <button class="tab-btn" data-tab="fleet">Flotte</button>
       <button class="tab-btn" data-tab="bilanz">Bilanz</button>
+      <button class="tab-btn" data-tab="kredite">Kredite</button>
       <button class="tab-btn" data-tab="save">Spielstand</button>
     </div>
 
@@ -75,6 +76,15 @@
       <h2>Ergebnisrechnung</h2>
       <p class="hint">Kumulierte Erträge und Aufwendungen seit Spielbeginn.</p>
       <div id="bilanz-info"></div>
+    </section>
+
+    <section id="tab-kredite" class="tab-panel">
+      <h2>Kredite</h2>
+      <p class="hint">Beleihung von Kontoren und Schiffen bis 80 % des Werts. Der Zinssatz steigt mit dem Beleihungsgrad.</p>
+      <h3>Kontore</h3>
+      <div id="kredite-kontore"></div>
+      <h3>Schiffe</h3>
+      <div id="kredite-schiffe"></div>
     </section>
 
     <section id="tab-save" class="tab-panel">

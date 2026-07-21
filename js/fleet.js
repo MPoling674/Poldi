@@ -26,6 +26,7 @@ const Fleet = (() => {
       cannons: 2,
       speedBonus: 0,
       insurance: null,
+      loan: null,
     };
   }
 
@@ -180,6 +181,32 @@ const Fleet = (() => {
     return SHIP_BASE_COST * state.ships.length;
   }
 
+  function shipValue(ship) {
+    return SHIP_BASE_COST;
+  }
+
+  function borrowAgainstShip(ship, amount) {
+    if (amount <= 0) return { ok: false, reason: "Ungültiger Betrag." };
+    const currentPrincipal = (ship.loan && ship.loan.principal) || 0;
+    const maxLoan = shipValue(ship) * LOAN_MAX_LTV;
+    if (currentPrincipal + amount > maxLoan) {
+      return { ok: false, reason: `Beleihungsgrenze überschritten (max. ${Math.round(maxLoan)} G).` };
+    }
+    addGold(amount);
+    ship.loan = { principal: currentPrincipal + amount };
+    return { ok: true, amount };
+  }
+
+  function repayShipLoan(ship, amount) {
+    if (!ship.loan) return { ok: false, reason: "Kein offener Kredit auf dieses Schiff." };
+    const actual = Math.min(amount, ship.loan.principal, state.gold);
+    if (actual <= 0) return { ok: false, reason: "Nicht genug Gold oder ungültiger Betrag." };
+    state.gold -= actual;
+    ship.loan.principal -= actual;
+    if (ship.loan.principal <= 0) ship.loan = null;
+    return { ok: true, amount: actual };
+  }
+
   function buyShip(cityId) {
     if (Kontor.level(cityId) === 0) return { ok: false, reason: "Kein Kontor in dieser Stadt — dort gibt es keine Werft." };
     const cost = shipCost();
@@ -205,6 +232,7 @@ const Fleet = (() => {
       cannons: NPC_SHIP_BASE.cannons,
       speedBonus: NPC_SHIP_BASE.speedBonus,
       insurance: null,
+      loan: null,
     };
     state.ships.push(ship);
     return { ok: true, cost, ship };
@@ -256,6 +284,13 @@ const Fleet = (() => {
       ship.totalDays = 0;
       return { insured: true, cargoLossValue, shipValue: SHIP_BASE_COST };
     }
+    let loanWrittenOff = 0;
+    let loanRepaid = 0;
+    if (ship.loan && ship.loan.principal > 0) {
+      loanRepaid = Math.min(ship.loan.principal, state.gold);
+      state.gold -= loanRepaid;
+      loanWrittenOff = ship.loan.principal - loanRepaid;
+    }
     state.ships = state.ships.filter((s) => s.id !== ship.id);
     const amount = Math.round(400 + ship.cargoCapacity * 3 + Math.random() * 300);
     const ransom = {
@@ -266,7 +301,7 @@ const Fleet = (() => {
       deadlineDay: currentDay + RANSOM_DEADLINE_DAYS,
     };
     state.ransoms.push(ransom);
-    return { insured: false, ransom, cargoLossValue };
+    return { insured: false, ransom, cargoLossValue, loanRepaid, loanWrittenOff };
   }
 
   function payRansom(ransomId) {
@@ -303,7 +338,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -313,6 +348,7 @@ const Fleet = (() => {
     state.ships.forEach((ship) => {
       if (!ship.cargoCost) ship.cargoCost = {};
       if (ship.insurance === undefined) ship.insurance = null;
+      if (ship.loan === undefined) ship.loan = null;
     });
   }
 
@@ -340,6 +376,9 @@ const Fleet = (() => {
     mergeCost,
     networth,
     shipCost,
+    shipValue,
+    borrowAgainstShip,
+    repayShipLoan,
     buyShip,
     insuranceCost,
     buyInsurance,

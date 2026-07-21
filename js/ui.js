@@ -25,6 +25,9 @@ const UI = (() => {
 
     el.bilanzInfo = document.getElementById("bilanz-info");
 
+    el.krediteKontore = document.getElementById("kredite-kontore");
+    el.krediteSchiffe = document.getElementById("kredite-schiffe");
+
     el.eventLog = document.getElementById("event-log");
     el.toastContainer = document.getElementById("toast-container");
 
@@ -362,12 +365,25 @@ const UI = (() => {
     kontorBuilds: "Kontor-Baukosten",
     cannonPurchases: "Kanonenkäufe",
     pirateLosses: "Piratenverluste",
+    loanInterest: "Kreditzinsen",
   };
   const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
-    "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses",
+    "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses", "loanInterest",
   ];
+
+  function totalLoanPrincipal() {
+    let total = 0;
+    CITIES.forEach((city) => {
+      const loan = Kontor.loanOf(city.id);
+      if (loan) total += loan.principal;
+    });
+    Fleet.allShips().forEach((ship) => {
+      if (ship.loan) total += ship.loan.principal;
+    });
+    return total;
+  }
 
   // Wert der noch unverkauften Ware zum Einkaufspreis (nicht zum aktuellen Marktpreis) —
   // sowohl an Bord aller Schiffe als auch in allen Kontor-Lagerhäusern.
@@ -397,6 +413,89 @@ const UI = (() => {
       });
     });
     return { total: Math.round(total), rows };
+  }
+
+  function renderKredite() {
+    let kontorHtml = "";
+    const kontorCities = CITIES.filter((c) => Kontor.level(c.id) > 0);
+    if (kontorCities.length === 0) {
+      kontorHtml = `<p class="hint">Noch kein Kontor gebaut.</p>`;
+    } else {
+      kontorCities.forEach((city) => {
+        const value = Kontor.assetValue(city.id);
+        const loan = Kontor.loanOf(city.id);
+        const principal = loan ? loan.principal : 0;
+        const rate = loanRate(principal, value);
+        const dailyInterest = (principal * rate) / YEAR_LENGTH_DAYS;
+        const maxLoan = Math.max(0, value * LOAN_MAX_LTV - principal);
+        kontorHtml += `<div class="kontor-city">
+          <span><b>${city.name}</b> (Kontor Stufe ${Kontor.level(city.id)}, Wert ${Math.round(value)} G)<br>
+          ${loan ? `Kredit: ${Math.round(principal)} G · Zins ${(rate * 100).toFixed(1)}% p.a. (~${dailyInterest.toFixed(2)} G/Tag)` : "Kein Kredit"}</span>
+        </div>
+        <div class="kontor-city">
+          <div class="trade-action">
+            <input type="number" min="0" max="${Math.floor(maxLoan)}" value="${Math.min(100, Math.floor(maxLoan))}" data-city="${city.id}" class="loan-input-borrow">
+            <button data-action="borrow-kontor" data-city="${city.id}" ${maxLoan < 1 ? "disabled" : ""}>Aufnehmen</button>
+          </div>
+          <div class="trade-action">
+            <input type="number" min="0" max="${Math.floor(principal)}" value="${Math.floor(principal)}" data-city="${city.id}" class="loan-input-repay">
+            <button data-action="repay-kontor" data-city="${city.id}" ${principal <= 0 ? "disabled" : ""}>Tilgen</button>
+          </div>
+        </div>`;
+      });
+    }
+    el.krediteKontore.innerHTML = kontorHtml;
+    el.krediteKontore.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const cityId = btn.dataset.city;
+        const action = btn.dataset.action;
+        const inputClass = action === "borrow-kontor" ? "loan-input-borrow" : "loan-input-repay";
+        const input = el.krediteKontore.querySelector(`.${inputClass}[data-city="${cityId}"]`);
+        const amount = Math.max(1, parseInt(input.value, 10) || 0);
+        if (action === "borrow-kontor" && callbacks.borrowKontor) callbacks.borrowKontor(cityId, amount);
+        if (action === "repay-kontor" && callbacks.repayKontor) callbacks.repayKontor(cityId, amount);
+      });
+    });
+
+    let shipHtml = "";
+    if (Fleet.allShips().length === 0) {
+      shipHtml = `<p class="hint">Keine Schiffe im Dienst.</p>`;
+    } else {
+      Fleet.allShips().forEach((ship) => {
+        const value = Fleet.shipValue(ship);
+        const loan = ship.loan;
+        const principal = loan ? loan.principal : 0;
+        const rate = loanRate(principal, value);
+        const dailyInterest = (principal * rate) / YEAR_LENGTH_DAYS;
+        const maxLoan = Math.max(0, value * LOAN_MAX_LTV - principal);
+        shipHtml += `<div class="kontor-city">
+          <span><b>${ship.name}</b> (Wert ${value} G)<br>
+          ${loan ? `Kredit: ${Math.round(principal)} G · Zins ${(rate * 100).toFixed(1)}% p.a. (~${dailyInterest.toFixed(2)} G/Tag)` : "Kein Kredit"}</span>
+        </div>
+        <div class="kontor-city">
+          <div class="trade-action">
+            <input type="number" min="0" max="${Math.floor(maxLoan)}" value="${Math.min(100, Math.floor(maxLoan))}" data-ship="${ship.id}" class="loan-input-borrow-ship">
+            <button data-action="borrow-ship" data-ship="${ship.id}" ${maxLoan < 1 ? "disabled" : ""}>Aufnehmen</button>
+          </div>
+          <div class="trade-action">
+            <input type="number" min="0" max="${Math.floor(principal)}" value="${Math.floor(principal)}" data-ship="${ship.id}" class="loan-input-repay-ship">
+            <button data-action="repay-ship" data-ship="${ship.id}" ${principal <= 0 ? "disabled" : ""}>Tilgen</button>
+          </div>
+        </div>`;
+      });
+    }
+    el.krediteSchiffe.innerHTML = shipHtml;
+    el.krediteSchiffe.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const shipId = Number(btn.dataset.ship);
+        const action = btn.dataset.action;
+        const inputClass = action === "borrow-ship" ? "loan-input-borrow-ship" : "loan-input-repay-ship";
+        const input = el.krediteSchiffe.querySelector(`.${inputClass}[data-ship="${shipId}"]`);
+        const amount = Math.max(1, parseInt(input.value, 10) || 0);
+        if (action === "borrow-ship" && callbacks.borrowShip) callbacks.borrowShip(shipId, amount);
+        if (action === "repay-ship" && callbacks.repayShip) callbacks.repayShip(shipId, amount);
+      });
+    });
   }
 
   function renderBilanz() {
@@ -432,6 +531,28 @@ const UI = (() => {
 
     const saldo = totalIncome - totalExpense;
     html += `<h3>Saldo</h3><div class="tooltip-row"><span>${saldo >= 0 ? "Gewinn" : "Verlust"} seit Spielbeginn (inkl. Warenbestand)</span><span>${saldo} G</span></div>`;
+
+    const loanTotal = Math.round(totalLoanPrincipal());
+    html += "<h3>Offene Kredite</h3>";
+    if (loanTotal <= 0) {
+      html += `<p class="hint">Keine offenen Kredite.</p>`;
+    } else {
+      CITIES.forEach((city) => {
+        const loan = Kontor.loanOf(city.id);
+        if (loan) html += `<div class="tooltip-row"><span>Kontor ${city.name}</span><span>${Math.round(loan.principal)} G</span></div>`;
+      });
+      Fleet.allShips().forEach((ship) => {
+        if (ship.loan) html += `<div class="tooltip-row"><span>${ship.name}</span><span>${Math.round(ship.loan.principal)} G</span></div>`;
+      });
+      html += `<div class="tooltip-row"><span><b>Summe offene Kredite</b></span><span><b>${loanTotal} G</b></span></div>`;
+    }
+
+    // Gold + Warenbestand (Schiffe & Kontore, zum Einkaufswert) abzueglich offener Kredite.
+    // Bewusst nicht Fleet.networth() (das bewertet Schiffsladung zum Verkaufspreis) —
+    // sonst wuerde die Ladung doppelt und mit unterschiedlichen Preisen gezaehlt.
+    const netWorth = Math.round(Fleet.gold() + inventory.total - loanTotal);
+    html += `<h3>Nettovermögen</h3><div class="tooltip-row"><span>Gold + Warenbestand, abzüglich offener Kredite</span><span>${netWorth} G</span></div>`;
+
     el.bilanzInfo.innerHTML = html;
   }
 
@@ -442,6 +563,7 @@ const UI = (() => {
     renderKontor();
     renderFleet();
     renderBilanz();
+    renderKredite();
   }
 
   return {

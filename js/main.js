@@ -276,6 +276,33 @@ const Game = (() => {
       UI.log(`Die Lösegeldfrist für ${ransom.shipName} ist abgelaufen — die Crew ist verloren.`);
     });
 
+    CITIES.forEach((city) => {
+      const loan = Kontor.loanOf(city.id);
+      if (!loan) return;
+      const rate = loanRate(loan.principal, Kontor.assetValue(city.id));
+      const interest = (loan.principal * rate) / YEAR_LENGTH_DAYS;
+      if (Fleet.gold() >= interest) {
+        Fleet.addGold(-interest);
+        Ledger.record("loanInterest", interest);
+      } else {
+        loan.principal += interest;
+        UI.log(`Zinszahlung für den Kontor-Kredit in ${city.name} nicht möglich — ${interest.toFixed(2)} Gulden wurden dem Kredit zugeschlagen.`);
+      }
+    });
+
+    Fleet.allShips().forEach((ship) => {
+      if (!ship.loan) return;
+      const rate = loanRate(ship.loan.principal, Fleet.shipValue(ship));
+      const interest = (ship.loan.principal * rate) / YEAR_LENGTH_DAYS;
+      if (Fleet.gold() >= interest) {
+        Fleet.addGold(-interest);
+        Ledger.record("loanInterest", interest);
+      } else {
+        ship.loan.principal += interest;
+        UI.log(`Zinszahlung für den Kredit auf ${ship.name} nicht möglich — ${interest.toFixed(2)} Gulden wurden dem Kredit zugeschlagen.`);
+      }
+    });
+
     UI.renderAll();
     saveGame();
 
@@ -408,6 +435,38 @@ const Game = (() => {
     saveGame();
   }
 
+  function handleBorrowKontor(cityId, amount) {
+    const res = Kontor.borrowAgainstKontor(cityId, amount);
+    UI.log(res.ok ? `Kredit über ${res.amount} Gulden gegen das Kontor in ${getCity(cityId).name} aufgenommen.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleRepayKontor(cityId, amount) {
+    const res = Kontor.repayKontorLoan(cityId, amount);
+    UI.log(res.ok ? `${res.amount} Gulden Kontor-Kredit in ${getCity(cityId).name} getilgt.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleBorrowShip(shipId, amount) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.borrowAgainstShip(ship, amount);
+    UI.log(res.ok ? `Kredit über ${res.amount} Gulden gegen ${ship.name} aufgenommen.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleRepayShip(shipId, amount) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.repayShipLoan(ship, amount);
+    UI.log(res.ok ? `${res.amount} Gulden Kredit auf ${ship.name} getilgt.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
   function handlePayRansom(ransomId) {
     const res = Fleet.payRansom(ransomId);
     if (res.ok) Ledger.record("ransoms", res.ransom.amount);
@@ -462,6 +521,10 @@ const Game = (() => {
     UI.on("buyCannon", handleBuyCannon);
     UI.on("buyShip", handleBuyShip);
     UI.on("buyInsurance", handleBuyInsurance);
+    UI.on("borrowKontor", handleBorrowKontor);
+    UI.on("repayKontor", handleRepayKontor);
+    UI.on("borrowShip", handleBorrowShip);
+    UI.on("repayShip", handleRepayShip);
     UI.on("payRansom", handlePayRansom);
     UI.on("pirateChoice", handlePirateChoice);
     UI.on("saveNow", handleSaveNow);

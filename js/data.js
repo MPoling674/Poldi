@@ -69,6 +69,22 @@ function shipStrength(ship) {
   return ship.cannons * 3 + ship.cargoCapacity * 0.1;
 }
 
+// Beleihung von Kontoren und Schiffen
+const LOAN_MAX_LTV = 0.8; // maximaler Beleihungsgrad (Kredit / Vermögenswert)
+const LOAN_BASE_RATE = 0.05; // Jahreszins bei sehr niedrigem Beleihungsgrad
+const LOAN_MAX_RATE = 0.20; // Jahreszins bei maximaler Beleihung (LOAN_MAX_LTV)
+
+// Jahreszins abhaengig vom aktuellen Beleihungsgrad (linear zwischen Basis- und Maximalzins).
+function loanRate(principal, assetValue) {
+  if (assetValue <= 0 || principal <= 0) return LOAN_BASE_RATE;
+  const ltv = Math.min(1, principal / assetValue);
+  return LOAN_BASE_RATE + (LOAN_MAX_RATE - LOAN_BASE_RATE) * (ltv / LOAN_MAX_LTV);
+}
+
+function kontorValue(level) {
+  return 500 * (level * (level + 1)) / 2;
+}
+
 function getCity(cityId) {
   return CITIES.find((c) => c.id === cityId);
 }

@@ -36,11 +36,14 @@ const Pirates = (() => {
       const ransom = outcome.ransom;
       if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
       const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
+      const loanNote = outcome.loanWrittenOff > 0
+        ? ` Ein offener Kredit auf das Schiff wurde zu ${outcome.loanRepaid} Gulden getilgt, ${outcome.loanWrittenOff} Gulden Restschuld wurden erlassen.`
+        : outcome.loanRepaid > 0 ? ` Ein offener Kredit auf das Schiff (${outcome.loanRepaid} Gulden) wurde vollständig getilgt.` : "";
       return {
         won: false,
         destroyed: true,
         ransom,
-        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}`,
+        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}${loanNote}`,
       };
     }
 
@@ -85,11 +88,14 @@ const Pirates = (() => {
       const ransom = outcome.ransom;
       if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
       const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
+      const loanNote = outcome.loanWrittenOff > 0
+        ? ` Ein offener Kredit auf das Schiff wurde zu ${outcome.loanRepaid} Gulden getilgt, ${outcome.loanWrittenOff} Gulden Restschuld wurden erlassen.`
+        : outcome.loanRepaid > 0 ? ` Ein offener Kredit auf das Schiff (${outcome.loanRepaid} Gulden) wurde vollständig getilgt.` : "";
       return {
         fled: false,
         destroyed: true,
         ransom,
-        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}`,
+        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}${loanNote}`,
       };
     }
 
