@@ -241,6 +241,9 @@ button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
 #event-log { list-style: none; padding: 0; margin: 0; font-size: 13px; max-height: 480px; overflow-y: auto; }
 #event-log li { padding: 4px 0; border-bottom: 1px solid #26425f; }
 
+.info-list { padding-left: 20px; margin: 0 0 14px; }
+.info-list li { margin-bottom: 8px; line-height: 1.4; }
+
 #kontor-info .kontor-city, #kredite-kontore .kontor-city, #kredite-schiffe .kontor-city { padding: 8px 0; border-bottom: 1px solid #26425f; display: flex; justify-content: space-between; align-items: center; }
 
 .modal, #travel-overlay {
