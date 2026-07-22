@@ -254,12 +254,22 @@ const UI = (() => {
         : ` · Heuer/Tag ~${Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship))} G`;
       const insured = ship.insurance && ship.insurance.active;
       const insuranceCost = Fleet.insuranceCost(Game.currentDay());
+      const pausedNote = !ship.isPlayer && ship.paused ? " · Handel pausiert" : "";
       html += `<div class="kontor-city">
         <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
         ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}<br>
-        ${insuranceStatusLine(ship)}</span>
+        ${insuranceStatusLine(ship)}${pausedNote}</span>
         ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Versichern (${insuranceCost} G)</button>`}
       </div>`;
+      if (!ship.isPlayer) {
+        const sellProceeds = Math.round(Fleet.shipValue(ship) * 0.5);
+        html += `<div class="kontor-city">
+          ${ship.paused
+            ? `<button data-resume="${ship.id}">Fortsetzen</button>`
+            : `<button data-pause="${ship.id}">Handel pausieren</button>`}
+          <button data-sell="${ship.id}" ${ship.sailing ? "disabled" : ""}>Verkaufen (${sellProceeds} G)</button>
+        </div>`;
+      }
     });
     if (Fleet.allShips().length === 0) {
       html += `<p class="hint">Keine Schiffe mehr im Dienst.</p>`;
@@ -267,6 +277,15 @@ const UI = (() => {
     el.fleetShips.innerHTML = html;
     el.fleetShips.querySelectorAll("button[data-insure]").forEach((btn) => {
       btn.addEventListener("click", () => callbacks.buyInsurance && callbacks.buyInsurance(Number(btn.dataset.insure)));
+    });
+    el.fleetShips.querySelectorAll("button[data-pause]").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.pauseShip && callbacks.pauseShip(Number(btn.dataset.pause)));
+    });
+    el.fleetShips.querySelectorAll("button[data-resume]").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.resumeShip && callbacks.resumeShip(Number(btn.dataset.resume)));
+    });
+    el.fleetShips.querySelectorAll("button[data-sell]").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.sellShip && callbacks.sellShip(Number(btn.dataset.sell)));
     });
 
     const kontorCities = CITIES.filter((c) => Kontor.level(c.id) > 0);
@@ -370,7 +389,7 @@ const UI = (() => {
   const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
-    "ransoms", "shipPurchases", "kontorBuilds", "cannonPurchases", "pirateLosses", "loanInterest",
+    "ransoms", "pirateLosses", "loanInterest",
   ];
 
   function totalLoanPrincipal() {
@@ -383,6 +402,17 @@ const UI = (() => {
       if (ship.loan) total += ship.loan.principal;
     });
     return total;
+  }
+
+  // Kumulierte Anschaffungskosten der ueber die Basis-Ausstattung (2 Kanonen) hinaus
+  // gekauften Kanonen des Flaggschiffs, hergeleitet aus Kontor.cannonCost()'s Grenzkostenformel
+  // (300 * (aktuelle Kanonenzahl - 1) fuer die naechste Kanone). Nur das Flaggschiff kann
+  // aufgeruestet werden, daher kein Wert fuer NPC-Schiffe.
+  function cannonAssetValue() {
+    const ship = Fleet.playerShip();
+    if (!ship) return 0;
+    const n = ship.cannons;
+    return Math.max(0, (300 * (n - 2) * (n - 1)) / 2);
   }
 
   // Wert der noch unverkauften Ware zum Einkaufspreis (nicht zum aktuellen Marktpreis) —
@@ -503,7 +533,8 @@ const UI = (() => {
     let totalIncome = 0;
     let totalExpense = 0;
 
-    let html = "<h3>Erträge</h3>";
+    let html = "<h2>Gewinn- und Verlustrechnung (GuV)</h2>";
+    html += "<h3>Erträge</h3>";
     LEDGER_INCOME_CATEGORIES.forEach((cat) => {
       const amount = Math.round(summary[cat] || 0);
       totalIncome += amount;
@@ -532,8 +563,29 @@ const UI = (() => {
     const saldo = totalIncome - totalExpense;
     html += `<h3>Saldo</h3><div class="tooltip-row"><span>${saldo >= 0 ? "Gewinn" : "Verlust"} seit Spielbeginn (inkl. Warenbestand)</span><span>${saldo} G</span></div>`;
 
+    // Bilanz: Vermögenswerte (Anlage- & Umlaufvermögen) und Schulden zum aktuellen Zeitpunkt —
+    // live aus dem Spielzustand berechnet, nicht aus kumulierten Ledger-Werten, damit z.B.
+    // verlorene Schiffe nicht weiter als Vermögen mitgezaehlt werden.
+    html += "<h2>Bilanz</h2>";
+
+    const shipsAssetValue = Fleet.allShips().reduce((sum, s) => sum + Fleet.shipValue(s), 0);
+    const kontorAssetValue = CITIES.reduce((sum, c) => sum + Kontor.assetValue(c.id), 0);
+    const cannonValue = cannonAssetValue();
+    const fixedAssets = shipsAssetValue + kontorAssetValue + cannonValue;
+    html += "<h3>Anlagevermögen</h3>";
+    html += `<div class="tooltip-row"><span>Schiffe (${Fleet.allShips().length}x)</span><span>${Math.round(shipsAssetValue)} G</span></div>`;
+    html += `<div class="tooltip-row"><span>Kontore</span><span>${Math.round(kontorAssetValue)} G</span></div>`;
+    html += `<div class="tooltip-row"><span>Kanonen (Flaggschiff)</span><span>${Math.round(cannonValue)} G</span></div>`;
+    html += `<div class="tooltip-row"><span><b>Summe Anlagevermögen</b></span><span><b>${Math.round(fixedAssets)} G</b></span></div>`;
+
+    const currentAssets = Fleet.gold() + inventory.total;
+    html += "<h3>Umlaufvermögen</h3>";
+    html += `<div class="tooltip-row"><span>Gold</span><span>${Math.round(Fleet.gold())} G</span></div>`;
+    html += `<div class="tooltip-row"><span>Warenbestand (Einkaufswert)</span><span>${inventory.total} G</span></div>`;
+    html += `<div class="tooltip-row"><span><b>Summe Umlaufvermögen</b></span><span><b>${Math.round(currentAssets)} G</b></span></div>`;
+
     const loanTotal = Math.round(totalLoanPrincipal());
-    html += "<h3>Offene Kredite</h3>";
+    html += "<h3>Fremdkapital (offene Kredite)</h3>";
     if (loanTotal <= 0) {
       html += `<p class="hint">Keine offenen Kredite.</p>`;
     } else {
@@ -544,14 +596,12 @@ const UI = (() => {
       Fleet.allShips().forEach((ship) => {
         if (ship.loan) html += `<div class="tooltip-row"><span>${ship.name}</span><span>${Math.round(ship.loan.principal)} G</span></div>`;
       });
-      html += `<div class="tooltip-row"><span><b>Summe offene Kredite</b></span><span><b>${loanTotal} G</b></span></div>`;
+      html += `<div class="tooltip-row"><span><b>Summe Fremdkapital</b></span><span><b>${loanTotal} G</b></span></div>`;
     }
 
-    // Gold + Warenbestand (Schiffe & Kontore, zum Einkaufswert) abzueglich offener Kredite.
-    // Bewusst nicht Fleet.networth() (das bewertet Schiffsladung zum Verkaufspreis) —
-    // sonst wuerde die Ladung doppelt und mit unterschiedlichen Preisen gezaehlt.
-    const netWorth = Math.round(Fleet.gold() + inventory.total - loanTotal);
-    html += `<h3>Nettovermögen</h3><div class="tooltip-row"><span>Gold + Warenbestand, abzüglich offener Kredite</span><span>${netWorth} G</span></div>`;
+    const equity = Math.round(fixedAssets + currentAssets - loanTotal);
+    html += "<h3>Eigenkapital</h3>";
+    html += `<div class="tooltip-row"><span>Anlage- + Umlaufvermögen, abzüglich Fremdkapital</span><span>${equity} G</span></div>`;
 
     el.bilanzInfo.innerHTML = html;
   }

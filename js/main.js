@@ -19,7 +19,13 @@ const Game = (() => {
     tickScheduled = true;
     setTimeout(() => {
       tickScheduled = false;
-      dayTick();
+      try {
+        dayTick();
+      } catch (e) {
+        console.error("Fehler im Tages-Tick:", e);
+        UI.log("Ein unerwarteter Fehler ist aufgetreten — das Spiel läuft weiter.");
+        if (anySailing()) scheduleTick();
+      }
     }, SAIL_STEP_MS);
   }
 
@@ -196,6 +202,10 @@ const Game = (() => {
     const revenue = npcSellAll(ship);
     if (revenue > 0) {
       UI.log(`${ship.name} verkauft Ladung in ${getCity(ship.currentCityId).name} für ${revenue} Gulden.`);
+    }
+    if (ship.paused) {
+      UI.log(`${ship.name} bleibt pausiert im Hafen von ${getCity(ship.currentCityId).name} liegen.`);
+      return;
     }
     const goodId = npcPickPurchase(ship);
     const qty = npcBuy(ship, goodId);
@@ -435,6 +445,37 @@ const Game = (() => {
     saveGame();
   }
 
+  function handlePauseShip(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    Fleet.setPaused(ship, true);
+    UI.log(`${ship.name}: Handel pausiert — verkauft bei der nächsten Ankunft noch die Ladung, kauft dann aber nichts Neues mehr.`);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleResumeShip(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    Fleet.setPaused(ship, false);
+    UI.log(`${ship.name}: Handel fortgesetzt.`);
+    if (!ship.sailing) {
+      npcArrive(ship);
+      scheduleTick();
+    }
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleSellShip(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.sellShip(ship);
+    UI.log(res.ok ? `${ship.name} verkauft für ${res.netProceeds} Gulden${res.loanRepaid > 0 ? ` (nach Tilgung von ${Math.round(res.loanRepaid)} G Kredit)` : ""}.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
   function handleBorrowKontor(cityId, amount) {
     const res = Kontor.borrowAgainstKontor(cityId, amount);
     UI.log(res.ok ? `Kredit über ${res.amount} Gulden gegen das Kontor in ${getCity(cityId).name} aufgenommen.` : res.reason);
@@ -521,6 +562,9 @@ const Game = (() => {
     UI.on("buyCannon", handleBuyCannon);
     UI.on("buyShip", handleBuyShip);
     UI.on("buyInsurance", handleBuyInsurance);
+    UI.on("pauseShip", handlePauseShip);
+    UI.on("resumeShip", handleResumeShip);
+    UI.on("sellShip", handleSellShip);
     UI.on("borrowKontor", handleBorrowKontor);
     UI.on("repayKontor", handleRepayKontor);
     UI.on("borrowShip", handleBorrowShip);

@@ -27,6 +27,7 @@ const Fleet = (() => {
       speedBonus: 0,
       insurance: null,
       loan: null,
+      paused: false,
     };
   }
 
@@ -233,9 +234,31 @@ const Fleet = (() => {
       speedBonus: NPC_SHIP_BASE.speedBonus,
       insurance: null,
       loan: null,
+      paused: false,
     };
     state.ships.push(ship);
     return { ok: true, cost, ship };
+  }
+
+  function setPaused(ship, paused) {
+    ship.paused = paused;
+  }
+
+  // Verkauft ein NPC-Schiff endgueltig gegen 50% seines Werts. Ein offener Kredit
+  // wird zuerst aus dem Erloes getilgt; reicht der Erloes nicht, wird der Verkauf
+  // verweigert (kein automatischer Erlass, da der Verkauf freiwillig ist).
+  function sellShip(ship) {
+    if (ship.isPlayer) return { ok: false, reason: "Das Flaggschiff kann nicht verkauft werden." };
+    if (ship.sailing) return { ok: false, reason: "Schiff ist auf See — kann nicht verkauft werden." };
+    const proceeds = Math.round(shipValue(ship) * 0.5);
+    const loanPrincipal = (ship.loan && ship.loan.principal) || 0;
+    if (loanPrincipal > proceeds) {
+      return { ok: false, reason: `Verkauf nicht möglich — offener Kredit (${Math.round(loanPrincipal)} G) übersteigt den Restwert (${proceeds} G). Bitte zuerst tilgen.` };
+    }
+    const netProceeds = proceeds - loanPrincipal;
+    addGold(netProceeds);
+    state.ships = state.ships.filter((s) => s.id !== ship.id);
+    return { ok: true, proceeds, loanRepaid: loanPrincipal, netProceeds };
   }
 
   // Anteiliger Beitrag fuer den Rest des laufenden Spieljahres (feste Jahresgrenzen ab Tag 1).
@@ -338,7 +361,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null, paused: false }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -349,6 +372,7 @@ const Fleet = (() => {
       if (!ship.cargoCost) ship.cargoCost = {};
       if (ship.insurance === undefined) ship.insurance = null;
       if (ship.loan === undefined) ship.loan = null;
+      if (ship.paused === undefined) ship.paused = false;
     });
   }
 
@@ -380,6 +404,8 @@ const Fleet = (() => {
     borrowAgainstShip,
     repayShipLoan,
     buyShip,
+    setPaused,
+    sellShip,
     insuranceCost,
     buyInsurance,
     checkInsuranceRenewal,
