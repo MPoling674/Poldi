@@ -23,7 +23,12 @@ const Pirates = (() => {
     const outcome = maybeDestroy(ship, currentDay);
     if (outcome && outcome.insured) {
       if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
+      // Das gesunkene Schiff geht als Anlagenabgang in gleicher Hoehe ab wie die
+      // Versicherungsleistung als Ertrag gebucht wird — beide gleichen sich netto aus,
+      // sodass kein Scheingewinn aus der Ersatzbeschaffung entsteht. Die Kanonen bleiben
+      // unangetastet (nur der Rumpf wird "ersetzt", das Schiffsobjekt bleibt erhalten).
       Ledger.record("insurancePayouts", outcome.shipValue);
+      Ledger.record("assetDisposalLosses", outcome.shipValue);
       const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.` : " Es war keine Ladung an Bord.";
       return {
         won: false,
@@ -79,7 +84,12 @@ const Pirates = (() => {
     const outcome = maybeDestroy(ship, currentDay);
     if (outcome && outcome.insured) {
       if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
+      // Das gesunkene Schiff geht als Anlagenabgang in gleicher Hoehe ab wie die
+      // Versicherungsleistung als Ertrag gebucht wird — beide gleichen sich netto aus,
+      // sodass kein Scheingewinn aus der Ersatzbeschaffung entsteht. Die Kanonen bleiben
+      // unangetastet (nur der Rumpf wird "ersetzt", das Schiffsobjekt bleibt erhalten).
       Ledger.record("insurancePayouts", outcome.shipValue);
+      Ledger.record("assetDisposalLosses", outcome.shipValue);
       const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.` : " Es war keine Ladung an Bord.";
       return {
         fled: false,
