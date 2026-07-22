@@ -147,7 +147,7 @@ const Game = (() => {
       const res = Market.sell(ship.currentCityId, goodId, qty);
       if (res.ok) {
         const fee = Math.round(res.revenue * HARBOR_FEE_RATE);
-        Fleet.addGold(res.revenue - fee);
+        Fleet.addShipCapital(ship, res.revenue - fee);
         Fleet.removeCargo(ship, goodId, qty);
         Ledger.record("tradeRevenue", res.revenue);
         Ledger.record("harborFees", fee);
@@ -174,7 +174,7 @@ const Game = (() => {
   function npcBuy(ship, goodId) {
     if (!goodId) return 0;
     const price = Market.buyPrice(ship.currentCityId, goodId) * (1 + HARBOR_FEE_RATE);
-    const maxByBudget = Math.floor((Fleet.gold() * 0.5) / price);
+    const maxByBudget = Math.floor((ship.tradingCapital || 0) / price);
     const maxByCargo = Fleet.cargoFree(ship);
     const maxByStock = Market.availableStock(ship.currentCityId, goodId);
     const qty = Math.max(0, Math.min(maxByBudget, maxByCargo, maxByStock));
@@ -182,7 +182,7 @@ const Game = (() => {
     const res = Market.buy(ship.currentCityId, goodId, qty);
     if (!res.ok) return 0;
     const fee = Math.round(res.cost * HARBOR_FEE_RATE);
-    Fleet.addGold(-res.cost - fee);
+    Fleet.addShipCapital(ship, -res.cost - fee);
     Fleet.addCargo(ship, goodId, qty, res.cost / qty);
     Ledger.record("tradeCost", res.cost);
     Ledger.record("harborFees", fee);
@@ -471,7 +471,31 @@ const Game = (() => {
     const ship = Fleet.getShip(shipId);
     if (!ship) return UI.log("Schiff nicht gefunden.");
     const res = Fleet.sellShip(ship);
-    UI.log(res.ok ? `${ship.name} verkauft für ${res.netProceeds} Gulden${res.loanRepaid > 0 ? ` (nach Tilgung von ${Math.round(res.loanRepaid)} G Kredit)` : ""}.` : res.reason);
+    if (res.ok) {
+      const loanNote = res.loanRepaid > 0 ? ` (nach Tilgung von ${Math.round(res.loanRepaid)} G Kredit)` : "";
+      const capitalNote = res.capitalReturned > 0 ? ` inkl. ${Math.round(res.capitalReturned)} G Handelskapital` : "";
+      UI.log(`${ship.name} verkauft für ${res.netProceeds} Gulden${loanNote}${capitalNote}.`);
+    } else {
+      UI.log(res.reason);
+    }
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleFundShip(shipId, amount) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.fundShip(ship, amount);
+    UI.log(res.ok ? `${res.amount} Gulden Handelskapital an ${ship.name} übertragen.` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleWithdrawShipCapital(shipId, amount) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.withdrawShipCapital(ship, amount);
+    UI.log(res.ok ? `${res.amount} Gulden Handelskapital von ${ship.name} aufs Konto übertragen.` : res.reason);
     UI.renderAll();
     saveGame();
   }
@@ -565,6 +589,8 @@ const Game = (() => {
     UI.on("pauseShip", handlePauseShip);
     UI.on("resumeShip", handleResumeShip);
     UI.on("sellShip", handleSellShip);
+    UI.on("fundShip", handleFundShip);
+    UI.on("withdrawShipCapital", handleWithdrawShipCapital);
     UI.on("borrowKontor", handleBorrowKontor);
     UI.on("repayKontor", handleRepayKontor);
     UI.on("borrowShip", handleBorrowShip);

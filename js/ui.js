@@ -255,19 +255,32 @@ const UI = (() => {
       const insured = ship.insurance && ship.insurance.active;
       const insuranceCost = Fleet.insuranceCost(Game.currentDay());
       const pausedNote = !ship.isPlayer && ship.paused ? " · Handel pausiert" : "";
+      const capitalNote = !ship.isPlayer ? ` · Handelskapital: ${Math.round(ship.tradingCapital || 0)} G` : "";
       html += `<div class="kontor-city">
         <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
-        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}<br>
+        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}${capitalNote}<br>
         ${insuranceStatusLine(ship)}${pausedNote}</span>
         ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Versichern (${insuranceCost} G)</button>`}
       </div>`;
       if (!ship.isPlayer) {
         const sellProceeds = Math.round(Fleet.shipValue(ship) * 0.5);
+        const capital = Math.floor(ship.tradingCapital || 0);
+        const fundDefault = Math.min(500, Math.floor(Fleet.gold()));
         html += `<div class="kontor-city">
           ${ship.paused
             ? `<button data-resume="${ship.id}">Fortsetzen</button>`
             : `<button data-pause="${ship.id}">Handel pausieren</button>`}
           <button data-sell="${ship.id}" ${ship.sailing ? "disabled" : ""}>Verkaufen (${sellProceeds} G)</button>
+        </div>
+        <div class="kontor-city">
+          <div class="trade-action">
+            <input type="number" min="0" max="${Math.floor(Fleet.gold())}" value="${fundDefault}" data-ship="${ship.id}" class="capital-input-fund">
+            <button data-action="fund-ship" data-ship="${ship.id}" ${Fleet.gold() <= 0 ? "disabled" : ""}>Zuweisen</button>
+          </div>
+          <div class="trade-action">
+            <input type="number" min="0" max="${capital}" value="${capital}" data-ship="${ship.id}" class="capital-input-withdraw">
+            <button data-action="withdraw-ship-capital" data-ship="${ship.id}" ${capital <= 0 ? "disabled" : ""}>Abziehen</button>
+          </div>
         </div>`;
       }
     });
@@ -286,6 +299,17 @@ const UI = (() => {
     });
     el.fleetShips.querySelectorAll("button[data-sell]").forEach((btn) => {
       btn.addEventListener("click", () => callbacks.sellShip && callbacks.sellShip(Number(btn.dataset.sell)));
+    });
+    el.fleetShips.querySelectorAll("button[data-action='fund-ship'], button[data-action='withdraw-ship-capital']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const shipId = Number(btn.dataset.ship);
+        const action = btn.dataset.action;
+        const inputClass = action === "fund-ship" ? "capital-input-fund" : "capital-input-withdraw";
+        const input = el.fleetShips.querySelector(`.${inputClass}[data-ship="${shipId}"]`);
+        const amount = Math.max(1, parseInt(input.value, 10) || 0);
+        if (action === "fund-ship" && callbacks.fundShip) callbacks.fundShip(shipId, amount);
+        if (action === "withdraw-ship-capital" && callbacks.withdrawShipCapital) callbacks.withdrawShipCapital(shipId, amount);
+      });
     });
 
     const kontorCities = CITIES.filter((c) => Kontor.level(c.id) > 0);
@@ -402,6 +426,12 @@ const UI = (() => {
       if (ship.loan) total += ship.loan.principal;
     });
     return total;
+  }
+
+  function npcTradingCapitalTotal() {
+    return Fleet.allShips()
+      .filter((ship) => !ship.isPlayer)
+      .reduce((sum, ship) => sum + (ship.tradingCapital || 0), 0);
   }
 
   // Kumulierte Anschaffungskosten der ueber die Basis-Ausstattung (2 Kanonen) hinaus
@@ -578,9 +608,11 @@ const UI = (() => {
     html += `<div class="tooltip-row"><span>Kanonen (Flaggschiff)</span><span>${Math.round(cannonValue)} G</span></div>`;
     html += `<div class="tooltip-row"><span><b>Summe Anlagevermögen</b></span><span><b>${Math.round(fixedAssets)} G</b></span></div>`;
 
-    const currentAssets = Fleet.gold() + inventory.total;
+    const npcCapital = Math.round(npcTradingCapitalTotal());
+    const currentAssets = Fleet.gold() + inventory.total + npcCapital;
     html += "<h3>Umlaufvermögen</h3>";
     html += `<div class="tooltip-row"><span>Gold</span><span>${Math.round(Fleet.gold())} G</span></div>`;
+    html += `<div class="tooltip-row"><span>Handelskapital (NPC-Schiffe)</span><span>${npcCapital} G</span></div>`;
     html += `<div class="tooltip-row"><span>Warenbestand (Einkaufswert)</span><span>${inventory.total} G</span></div>`;
     html += `<div class="tooltip-row"><span><b>Summe Umlaufvermögen</b></span><span><b>${Math.round(currentAssets)} G</b></span></div>`;
 

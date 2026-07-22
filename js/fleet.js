@@ -173,7 +173,7 @@ const Fleet = (() => {
   function networth() {
     let total = state.gold;
     state.ships.forEach((ship) => {
-      total += cargoValue(ship);
+      total += cargoValue(ship) + (ship.tradingCapital || 0);
     });
     return Math.round(total);
   }
@@ -217,6 +217,10 @@ const Fleet = (() => {
     const number = state.ships.length + 1;
     const nextId = Math.max(0, ...state.ships.map((s) => s.id)) + 1;
     const captain = becomesFlagship ? "Du" : CAPTAIN_NAMES[Math.floor(Math.random() * CAPTAIN_NAMES.length)];
+    // NPC-Schiffe bekommen ein eigenes, gedeckeltes Handelskapital (50% des nach dem
+    // Kauf verbleibenden Goldes) statt frei aus der gemeinsamen Kriegskasse zu handeln.
+    const initialCapital = becomesFlagship ? 0 : Math.round(state.gold * 0.5);
+    state.gold -= initialCapital;
     const ship = {
       id: nextId,
       name: becomesFlagship ? "Flaggschiff" : `Kogge ${number}`,
@@ -235,6 +239,7 @@ const Fleet = (() => {
       insurance: null,
       loan: null,
       paused: false,
+      tradingCapital: initialCapital,
     };
     state.ships.push(ship);
     return { ok: true, cost, ship };
@@ -244,9 +249,35 @@ const Fleet = (() => {
     ship.paused = paused;
   }
 
+  // Verbucht Handelsgewinn/-verlust eines NPC-Schiffs auf sein eigenes Handelskapital
+  // (nicht auf die gemeinsame Kriegskasse) — Untergrenze 0, analog zu addGold.
+  function addShipCapital(ship, amount) {
+    ship.tradingCapital = Math.max(0, (ship.tradingCapital || 0) + amount);
+  }
+
+  function fundShip(ship, amount) {
+    if (ship.isPlayer) return { ok: false, reason: "Das Flaggschiff handelt direkt über die Kriegskasse." };
+    if (amount <= 0) return { ok: false, reason: "Ungültiger Betrag." };
+    if (state.gold < amount) return { ok: false, reason: "Nicht genug Gold." };
+    state.gold -= amount;
+    ship.tradingCapital = (ship.tradingCapital || 0) + amount;
+    return { ok: true, amount };
+  }
+
+  function withdrawShipCapital(ship, amount) {
+    if (ship.isPlayer) return { ok: false, reason: "Das Flaggschiff handelt direkt über die Kriegskasse." };
+    const available = ship.tradingCapital || 0;
+    const actual = Math.min(amount, available);
+    if (actual <= 0) return { ok: false, reason: "Kein Handelskapital zum Abziehen vorhanden." };
+    ship.tradingCapital -= actual;
+    addGold(actual);
+    return { ok: true, amount: actual };
+  }
+
   // Verkauft ein NPC-Schiff endgueltig gegen 50% seines Werts. Ein offener Kredit
   // wird zuerst aus dem Erloes getilgt; reicht der Erloes nicht, wird der Verkauf
-  // verweigert (kein automatischer Erlass, da der Verkauf freiwillig ist).
+  // verweigert (kein automatischer Erlass, da der Verkauf freiwillig ist). Verbleibendes
+  // Handelskapital ist nur Bargeld in der Schiffskasse und wird zusaetzlich gutgeschrieben.
   function sellShip(ship) {
     if (ship.isPlayer) return { ok: false, reason: "Das Flaggschiff kann nicht verkauft werden." };
     if (ship.sailing) return { ok: false, reason: "Schiff ist auf See — kann nicht verkauft werden." };
@@ -256,9 +287,10 @@ const Fleet = (() => {
       return { ok: false, reason: `Verkauf nicht möglich — offener Kredit (${Math.round(loanPrincipal)} G) übersteigt den Restwert (${proceeds} G). Bitte zuerst tilgen.` };
     }
     const netProceeds = proceeds - loanPrincipal;
-    addGold(netProceeds);
+    const capitalReturned = ship.tradingCapital || 0;
+    addGold(netProceeds + capitalReturned);
     state.ships = state.ships.filter((s) => s.id !== ship.id);
-    return { ok: true, proceeds, loanRepaid: loanPrincipal, netProceeds };
+    return { ok: true, proceeds, loanRepaid: loanPrincipal, netProceeds, capitalReturned };
   }
 
   // Anteiliger Beitrag fuer den Rest des laufenden Spieljahres (feste Jahresgrenzen ab Tag 1).
@@ -314,6 +346,10 @@ const Fleet = (() => {
       state.gold -= loanRepaid;
       loanWrittenOff = ship.loan.principal - loanRepaid;
     }
+    // Handelskapital ist nur Bargeld in der Schiffskasse, kein Schiffswert —
+    // es geht mit dem Schiff nicht verloren, sondern kommt aufs Spielerkonto zurueck.
+    const capitalReturned = ship.tradingCapital || 0;
+    addGold(capitalReturned);
     state.ships = state.ships.filter((s) => s.id !== ship.id);
     const amount = Math.round(400 + ship.cargoCapacity * 3 + Math.random() * 300);
     const ransom = {
@@ -324,7 +360,7 @@ const Fleet = (() => {
       deadlineDay: currentDay + RANSOM_DEADLINE_DAYS,
     };
     state.ransoms.push(ransom);
-    return { insured: false, ransom, cargoLossValue, loanRepaid, loanWrittenOff };
+    return { insured: false, ransom, cargoLossValue, loanRepaid, loanWrittenOff, capitalReturned };
   }
 
   function payRansom(ransomId) {
@@ -361,7 +397,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null, paused: false }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null, paused: false, tradingCapital: 0 }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -373,6 +409,7 @@ const Fleet = (() => {
       if (ship.insurance === undefined) ship.insurance = null;
       if (ship.loan === undefined) ship.loan = null;
       if (ship.paused === undefined) ship.paused = false;
+      if (ship.tradingCapital === undefined) ship.tradingCapital = 0;
     });
   }
 
@@ -405,6 +442,9 @@ const Fleet = (() => {
     repayShipLoan,
     buyShip,
     setPaused,
+    addShipCapital,
+    fundShip,
+    withdrawShipCapital,
     sellShip,
     insuranceCost,
     buyInsurance,
