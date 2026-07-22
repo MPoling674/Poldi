@@ -245,8 +245,17 @@ const Fleet = (() => {
     return { ok: true, cost, ship };
   }
 
+  // Pausieren wirkt sofort: eine laufende Fahrt wird abgebrochen, das Schiff kehrt in
+  // den Hafen zurueck, den es gerade verlassen hat (ship.currentCityId aendert sich erst
+  // bei tatsaechlicher Ankunft, ist also waehrend der Fahrt noch der Ausgangshafen).
   function setPaused(ship, paused) {
     ship.paused = paused;
+    if (paused && ship.sailing) {
+      ship.sailing = false;
+      ship.destinationCityId = null;
+      ship.progressDays = 0;
+      ship.totalDays = 0;
+    }
   }
 
   // Verbucht Handelsgewinn/-verlust eines NPC-Schiffs auf sein eigenes Handelskapital

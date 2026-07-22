@@ -190,12 +190,20 @@ const Game = (() => {
   }
 
   function npcPickDestination(ship, boughtGoodId) {
+    const maxDays = ship.cannons * NPC_MAX_DAYS_PER_CANNON;
     const others = CITIES.filter((c) => c.id !== ship.currentCityId);
+    const inRange = others.filter((c) => Fleet.daysFor(cityDistance(ship.currentCityId, c.id), ship) <= maxDays);
+    const pool = inRange.length > 0 ? inRange : others;
     if (boughtGoodId) {
-      const matches = others.filter((c) => c.imports.includes(boughtGoodId));
+      const matches = pool.filter((c) => c.imports.includes(boughtGoodId));
       if (matches.length > 0) return matches[Math.floor(Math.random() * matches.length)].id;
     }
-    return others[Math.floor(Math.random() * others.length)].id;
+    if (pool.length > 0) return pool[Math.floor(Math.random() * pool.length)].id;
+    // Fallback (sollte praktisch nie eintreten): naechstgelegene Stadt, damit das
+    // Schiff auf keinen Fall ohne Ziel liegen bleibt.
+    return others.slice().sort((a, b) =>
+      cityDistance(ship.currentCityId, a.id) - cityDistance(ship.currentCityId, b.id)
+    )[0].id;
   }
 
   function npcArrive(ship) {
@@ -448,8 +456,12 @@ const Game = (() => {
   function handlePauseShip(shipId) {
     const ship = Fleet.getShip(shipId);
     if (!ship) return UI.log("Schiff nicht gefunden.");
+    const wasSailing = ship.sailing;
+    const previousCityId = ship.currentCityId;
     Fleet.setPaused(ship, true);
-    UI.log(`${ship.name}: Handel pausiert — verkauft bei der nächsten Ankunft noch die Ladung, kauft dann aber nichts Neues mehr.`);
+    UI.log(wasSailing
+      ? `${ship.name}: Fahrt abgebrochen — kehrt nach ${getCity(previousCityId).name} zurück und bleibt dort pausiert liegen.`
+      : `${ship.name}: Handel pausiert — bleibt im Hafen liegen, bis der Handel fortgesetzt wird.`);
     UI.renderAll();
     saveGame();
   }

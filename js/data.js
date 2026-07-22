@@ -54,6 +54,10 @@ const WAGE_CARGO_RATE = 0.03; // + 3% des aktuellen Ladungswerts/Tag
 const WAGE_STRENGTH_RATE = 1; // + 1 G/Tag je Punkt "Stärke" (Kanonen/Groesse)
 const DESTRUCTION_CHANCE = 0.25; // Anteil der Niederlagen, die zum Totalverlust führen
 const RANSOM_DEADLINE_DAYS = 15;
+// Max. Fahrzeit (Tage), die ein NPC-Schiff je Kanone von seinem aktuellen Hafen aus
+// zurücklegt, bevor es dort Handel treibt — begrenzt riskante Fernrouten mit vielen
+// Tagen Piratenrisiko (routeRiskPerDay) am Stück.
+const NPC_MAX_DAYS_PER_CANNON = 5;
 const CAPTAIN_NAMES = [
   "Hinrich Voss", "Tönnies Bruhn", "Cord Wessels", "Marten Hoyer",
   "Gerd Lindeman", "Otto Kranz", "Wulf Segeberg", "Diderik Pahl",
