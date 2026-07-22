@@ -331,11 +331,17 @@ const Fleet = (() => {
   }
 
   // Wird taeglich pro Schiff geprueft: faellige Verlaengerung abbuchen oder Police erloeschen lassen.
+  // Die jaehrliche Verlaengerung ist eine automatische Betriebskosten des Schiffs:
+  // beim Flaggschiff aus der Kriegskasse (kein eigenes Handelskapital), bei
+  // NPC-Schiffen aus deren eigenem Handelskapital (der Erstabschluss ueber
+  // buyInsurance() bleibt bewusst eine Kriegskassen-Investitionsentscheidung).
   function checkInsuranceRenewal(ship, currentDay) {
     if (!ship.insurance || !ship.insurance.active) return null;
     if (currentDay < ship.insurance.dueDay) return null;
-    if (state.gold >= INSURANCE_ANNUAL_COST) {
-      state.gold -= INSURANCE_ANNUAL_COST;
+    const available = ship.isPlayer ? state.gold : (ship.tradingCapital || 0);
+    if (available >= INSURANCE_ANNUAL_COST) {
+      if (ship.isPlayer) state.gold -= INSURANCE_ANNUAL_COST;
+      else ship.tradingCapital -= INSURANCE_ANNUAL_COST;
       ship.insurance.dueDay += YEAR_LENGTH_DAYS;
       return { renewed: true, cost: INSURANCE_ANNUAL_COST };
     }

@@ -24,7 +24,7 @@ const Game = (() => {
       } catch (e) {
         console.error("Fehler im Tages-Tick:", e);
         UI.log("Ein unerwarteter Fehler ist aufgetreten — das Spiel läuft weiter.");
-        if (anySailing()) scheduleTick();
+        if (playerIsSailing()) scheduleTick();
       }
     }, SAIL_STEP_MS);
   }
@@ -72,13 +72,21 @@ const Game = (() => {
     return Fleet.allShips().some((s) => s.sailing);
   }
 
+  // Die Spielzeit laeuft nur, solange das eigene Schiff unterwegs ist — NPC-Schiffe
+  // "ziehen" ihre Fahrt- und Handelstage nur an diesen Tagen mit, damit die Welt nicht
+  // im Hintergrund weiterlaeuft, waehrend der Spieler im Hafen liegt.
+  function playerIsSailing() {
+    const player = Fleet.playerShip();
+    return !!(player && player.sailing);
+  }
+
   function resumeIfSailing() {
     const player = Fleet.playerShip();
     if (player && player.sailing) {
       UI.showTravelOverlay(getCity(player.destinationCityId).name);
       UI.updateTravelBar(Fleet.progressRatio(player));
     }
-    if (anySailing()) {
+    if (playerIsSailing()) {
       scheduleTick();
     }
   }
@@ -228,7 +236,7 @@ const Game = (() => {
   }
 
   function dayTick() {
-    if (!anySailing()) return;
+    if (!playerIsSailing()) return;
     Market.tick();
     day += 1;
 
@@ -265,8 +273,12 @@ const Game = (() => {
     Fleet.allShips().forEach((ship) => {
       if (ship.isPlayer) return;
       const wage = Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship));
-      Fleet.addGold(-wage);
-      Ledger.record("wages", wage);
+      // Heuer ist eine Betriebskosten des Schiffs selbst — bezahlt aus seinem eigenen
+      // Handelskapital, nicht aus der Kriegskasse. Reicht es nicht, wird nur der
+      // tatsaechlich zahlbare Teil verbucht (kein Schulden-Modell fuer Heuer).
+      const paid = Math.min(wage, ship.tradingCapital || 0);
+      Fleet.addShipCapital(ship, -paid);
+      Ledger.record("wages", paid);
     });
 
     let kontorUpkeepTotal = 0;
@@ -286,7 +298,8 @@ const Game = (() => {
         Ledger.record("insurancePremiums", renewal.cost);
         UI.log(`Versicherung für ${ship.name} um ein Jahr verlängert (${renewal.cost} Gulden).`);
       } else {
-        UI.log(`Versicherungsschutz für ${ship.name} erloschen — nicht genug Gold zur Verlängerung.`);
+        const reason = ship.isPlayer ? "nicht genug Gold" : "nicht genug Handelskapital";
+        UI.log(`Versicherungsschutz für ${ship.name} erloschen — ${reason} zur Verlängerung.`);
       }
     });
 
@@ -324,7 +337,7 @@ const Game = (() => {
     UI.renderAll();
     saveGame();
 
-    if (anySailing()) {
+    if (playerIsSailing()) {
       scheduleTick();
     }
   }
