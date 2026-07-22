@@ -496,9 +496,11 @@ const Game = (() => {
     if (!ship) return UI.log("Schiff nicht gefunden.");
     const res = Fleet.sellShip(ship);
     if (res.ok) {
+      if (res.assetLoss > 0) Ledger.record("assetDisposalLosses", res.assetLoss);
       const loanNote = res.loanRepaid > 0 ? ` (nach Tilgung von ${Math.round(res.loanRepaid)} G Kredit)` : "";
       const capitalNote = res.capitalReturned > 0 ? ` inkl. ${Math.round(res.capitalReturned)} G Handelskapital` : "";
-      UI.log(`${ship.name} verkauft für ${res.netProceeds} Gulden${loanNote}${capitalNote}.`);
+      const assetNote = res.assetLoss > 0 ? ` Der Buchwertverlust (${res.assetLoss} Gulden) wurde als Anlagenabgang verbucht.` : "";
+      UI.log(`${ship.name} verkauft für ${res.netProceeds} Gulden${loanNote}${capitalNote}.${assetNote}`);
     } else {
       UI.log(res.reason);
     }

@@ -285,10 +285,13 @@ const Fleet = (() => {
     return { ok: true, amount: actual };
   }
 
-  // Verkauft ein NPC-Schiff endgueltig gegen 50% seines Werts. Ein offener Kredit
-  // wird zuerst aus dem Erloes getilgt; reicht der Erloes nicht, wird der Verkauf
-  // verweigert (kein automatischer Erlass, da der Verkauf freiwillig ist). Verbleibendes
+  // Verkauft ein NPC-Schiff endgueltig gegen 50% seines Rumpfwerts (Kanonen bringen
+  // beim Verkauf nichts ein, genau wie beim Totalverlust). Ein offener Kredit wird
+  // zuerst aus dem Erloes getilgt; reicht der Erloes nicht, wird der Verkauf verweigert
+  // (kein automatischer Erlass, da der Verkauf freiwillig ist). Verbleibendes
   // Handelskapital ist nur Bargeld in der Schiffskasse und wird zusaetzlich gutgeschrieben.
+  // Die Differenz zwischen Buchwert (Rumpf + Kanonen) und Erloes ist ein Anlagenabgang-
+  // Verlust, den der Aufrufer als GuV-Aufwand verbucht (assetLoss).
   function sellShip(ship) {
     if (ship.isPlayer) return { ok: false, reason: "Das Flaggschiff kann nicht verkauft werden." };
     if (ship.sailing) return { ok: false, reason: "Schiff ist auf See — kann nicht verkauft werden." };
@@ -299,9 +302,11 @@ const Fleet = (() => {
     }
     const netProceeds = proceeds - loanPrincipal;
     const capitalReturned = ship.tradingCapital || 0;
+    const cannonValueLost = ship.cannonValue || 0;
+    const assetLoss = Math.max(0, shipValue(ship) + cannonValueLost - proceeds);
     addGold(netProceeds + capitalReturned);
     state.ships = state.ships.filter((s) => s.id !== ship.id);
-    return { ok: true, proceeds, loanRepaid: loanPrincipal, netProceeds, capitalReturned };
+    return { ok: true, proceeds, loanRepaid: loanPrincipal, netProceeds, capitalReturned, cannonValueLost, assetLoss };
   }
 
   // Anteiliger Beitrag fuer den Rest des laufenden Spieljahres (feste Jahresgrenzen ab Tag 1).
