@@ -415,8 +415,9 @@ const UI = (() => {
     pirateLosses: "Piratenverluste",
     loanInterest: "Kreditzinsen",
     assetDisposalLosses: "Verluste aus Anlagenabgängen",
+    debtForgiveness: "Erträge aus Schuldenerlass",
   };
-  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts"];
+  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "debtForgiveness"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
     "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses",

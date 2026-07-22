@@ -41,6 +41,10 @@ const Pirates = (() => {
       const ransom = outcome.ransom;
       if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
       const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
+      // Erlassene Restschuld ist ein echter Vermoegenszuwachs (die Verbindlichkeit
+      // verschwindet ohne Gegenleistung) und muss als Ertrag verbucht werden — sonst
+      // stimmt die Bilanz-Eigenkapital-Aenderung nicht mit dem GuV-Saldo ueberein.
+      if (outcome.loanWrittenOff > 0) Ledger.record("debtForgiveness", outcome.loanWrittenOff);
       const loanNote = outcome.loanWrittenOff > 0
         ? ` Ein offener Kredit auf das Schiff wurde zu ${outcome.loanRepaid} Gulden getilgt, ${outcome.loanWrittenOff} Gulden Restschuld wurden erlassen.`
         : outcome.loanRepaid > 0 ? ` Ein offener Kredit auf das Schiff (${outcome.loanRepaid} Gulden) wurde vollständig getilgt.` : "";
@@ -102,6 +106,10 @@ const Pirates = (() => {
       const ransom = outcome.ransom;
       if (outcome.cargoLossValue > 0) Ledger.record("pirateLosses", outcome.cargoLossValue);
       const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
+      // Erlassene Restschuld ist ein echter Vermoegenszuwachs (die Verbindlichkeit
+      // verschwindet ohne Gegenleistung) und muss als Ertrag verbucht werden — sonst
+      // stimmt die Bilanz-Eigenkapital-Aenderung nicht mit dem GuV-Saldo ueberein.
+      if (outcome.loanWrittenOff > 0) Ledger.record("debtForgiveness", outcome.loanWrittenOff);
       const loanNote = outcome.loanWrittenOff > 0
         ? ` Ein offener Kredit auf das Schiff wurde zu ${outcome.loanRepaid} Gulden getilgt, ${outcome.loanWrittenOff} Gulden Restschuld wurden erlassen.`
         : outcome.loanRepaid > 0 ? ` Ein offener Kredit auf das Schiff (${outcome.loanRepaid} Gulden) wurde vollständig getilgt.` : "";
