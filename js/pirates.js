@@ -40,11 +40,14 @@ const Pirates = (() => {
         ? ` Ein offener Kredit auf das Schiff wurde zu ${outcome.loanRepaid} Gulden getilgt, ${outcome.loanWrittenOff} Gulden Restschuld wurden erlassen.`
         : outcome.loanRepaid > 0 ? ` Ein offener Kredit auf das Schiff (${outcome.loanRepaid} Gulden) wurde vollständig getilgt.` : "";
       const capitalNote = outcome.capitalReturned > 0 ? ` Das Handelskapital des Schiffs (${outcome.capitalReturned} Gulden) wurde deinem Konto gutgeschrieben.` : "";
+      const assetLoss = (outcome.shipValue || 0) + (outcome.cannonValueLost || 0);
+      if (assetLoss > 0) Ledger.record("assetDisposalLosses", assetLoss);
+      const assetNote = assetLoss > 0 ? ` Der Buchwert des Schiffs (${assetLoss} Gulden) wurde als Anlagenabgang verbucht.` : "";
       return {
         won: false,
         destroyed: true,
         ransom,
-        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}${loanNote}${capitalNote}`,
+        message: `Das Schiff ${ship.name} wurde in der Schlacht versenkt! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}${loanNote}${capitalNote}${assetNote}`,
       };
     }
 
@@ -93,11 +96,14 @@ const Pirates = (() => {
         ? ` Ein offener Kredit auf das Schiff wurde zu ${outcome.loanRepaid} Gulden getilgt, ${outcome.loanWrittenOff} Gulden Restschuld wurden erlassen.`
         : outcome.loanRepaid > 0 ? ` Ein offener Kredit auf das Schiff (${outcome.loanRepaid} Gulden) wurde vollständig getilgt.` : "";
       const capitalNote = outcome.capitalReturned > 0 ? ` Das Handelskapital des Schiffs (${outcome.capitalReturned} Gulden) wurde deinem Konto gutgeschrieben.` : "";
+      const assetLoss = (outcome.shipValue || 0) + (outcome.cannonValueLost || 0);
+      if (assetLoss > 0) Ledger.record("assetDisposalLosses", assetLoss);
+      const assetNote = assetLoss > 0 ? ` Der Buchwert des Schiffs (${assetLoss} Gulden) wurde als Anlagenabgang verbucht.` : "";
       return {
         fled: false,
         destroyed: true,
         ransom,
-        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}${loanNote}${capitalNote}`,
+        message: `Das Schiff ${ship.name} wurde bei der Flucht gekapert! Die Crew wird als Geisel gehalten — Lösegeld: ${ransom.amount} Gulden (fällig bis Tag ${ransom.deadlineDay}).${cargoNote}${loanNote}${capitalNote}${assetNote}`,
       };
     }
 

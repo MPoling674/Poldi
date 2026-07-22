@@ -114,19 +114,21 @@ const Kontor = (() => {
     return (kontors[cityId] && kontors[cityId].storageCost) || {};
   }
 
-  function cannonCost() {
-    const ship = Fleet.playerShip();
+  function cannonCost(ship) {
     return ship ? 300 * (ship.cannons - 1) : 0;
   }
 
-  function buyCannon() {
-    const ship = Fleet.playerShip();
-    if (!ship) return { ok: false, reason: "Kein eigenes Schiff vorhanden." };
+  // Kanonen sind eine Kapitalausgabe fuer ein bestimmtes Schiff (Flaggschiff oder
+  // NPC-Handelsschiff) — bezahlt aus der gemeinsamen Kriegskasse, nicht aus dem
+  // isolierten Handelskapital eines NPC-Schiffs.
+  function buyCannon(ship) {
+    if (!ship) return { ok: false, reason: "Kein Schiff vorhanden." };
     if (ship.cannons >= 6) return { ok: false, reason: "Schiff ist voll ausgerüstet." };
-    const cost = cannonCost();
+    const cost = cannonCost(ship);
     if (Fleet.gold() < cost) return { ok: false, reason: "Nicht genug Gold." };
     Fleet.addGold(-cost);
     ship.cannons += 1;
+    ship.cannonValue = (ship.cannonValue || 0) + cost;
     return { ok: true, cost };
   }
 

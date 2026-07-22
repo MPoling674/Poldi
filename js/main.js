@@ -420,9 +420,21 @@ const Game = (() => {
   }
 
   function handleBuyCannon() {
-    const res = Kontor.buyCannon();
+    const ship = Fleet.playerShip();
+    if (!ship) return UI.log("Kein eigenes Schiff vorhanden.");
+    const res = Kontor.buyCannon(ship);
     if (res.ok) Ledger.record("cannonPurchases", res.cost);
     UI.log(res.ok ? `Neue Kanone installiert (${res.cost} Gulden).` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleBuyCannonForShip(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Kontor.buyCannon(ship);
+    if (res.ok) Ledger.record("cannonPurchases", res.cost);
+    UI.log(res.ok ? `Neue Kanone für ${ship.name} installiert (${res.cost} Gulden).` : res.reason);
     UI.renderAll();
     saveGame();
   }
@@ -596,6 +608,7 @@ const Game = (() => {
     UI.on("store", handleStore);
     UI.on("withdraw", handleWithdraw);
     UI.on("buyCannon", handleBuyCannon);
+    UI.on("buyCannonForShip", handleBuyCannonForShip);
     UI.on("buyShip", handleBuyShip);
     UI.on("buyInsurance", handleBuyInsurance);
     UI.on("pauseShip", handlePauseShip);

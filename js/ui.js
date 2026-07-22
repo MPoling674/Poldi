@@ -186,7 +186,7 @@ const UI = (() => {
     if (ship) {
       html += `<div class="kontor-city"><span>Kanonen an Bord: ${ship.cannons}</span>
         <button data-action="cannon" ${ship.cannons >= 6 ? "disabled" : ""}>
-          Aufrüsten (${Kontor.cannonCost()} G)
+          Aufrüsten (${Kontor.cannonCost(ship)} G)
         </button></div>`;
     }
 
@@ -258,7 +258,7 @@ const UI = (() => {
       const capitalNote = !ship.isPlayer ? ` · Handelskapital: ${Math.round(ship.tradingCapital || 0)} G` : "";
       html += `<div class="kontor-city">
         <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
-        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity}${wageLine}${capitalNote}<br>
+        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity} · Kanonen: ${ship.cannons}${wageLine}${capitalNote}<br>
         ${insuranceStatusLine(ship)}${pausedNote}</span>
         ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Versichern (${insuranceCost} G)</button>`}
       </div>`;
@@ -266,11 +266,13 @@ const UI = (() => {
         const sellProceeds = Math.round(Fleet.shipValue(ship) * 0.5);
         const capital = Math.floor(ship.tradingCapital || 0);
         const fundDefault = Math.min(500, Math.floor(Fleet.gold()));
+        const cannonCost = Kontor.cannonCost(ship);
         html += `<div class="kontor-city">
           ${ship.paused
             ? `<button data-resume="${ship.id}">Fortsetzen</button>`
             : `<button data-pause="${ship.id}">Handel pausieren</button>`}
           <button data-sell="${ship.id}" ${ship.sailing ? "disabled" : ""}>Verkaufen (${sellProceeds} G)</button>
+          <button data-cannon="${ship.id}" ${ship.cannons >= 6 || Fleet.gold() < cannonCost ? "disabled" : ""}>Kanone kaufen (${cannonCost} G)</button>
         </div>
         <div class="kontor-city">
           <div class="trade-action">
@@ -299,6 +301,9 @@ const UI = (() => {
     });
     el.fleetShips.querySelectorAll("button[data-sell]").forEach((btn) => {
       btn.addEventListener("click", () => callbacks.sellShip && callbacks.sellShip(Number(btn.dataset.sell)));
+    });
+    el.fleetShips.querySelectorAll("button[data-cannon]").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.buyCannonForShip && callbacks.buyCannonForShip(Number(btn.dataset.cannon)));
     });
     el.fleetShips.querySelectorAll("button[data-action='fund-ship'], button[data-action='withdraw-ship-capital']").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -409,11 +414,12 @@ const UI = (() => {
     cannonPurchases: "Kanonenkäufe",
     pirateLosses: "Piratenverluste",
     loanInterest: "Kreditzinsen",
+    assetDisposalLosses: "Verluste aus Anlagenabgängen",
   };
   const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
-    "ransoms", "pirateLosses", "loanInterest",
+    "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses",
   ];
 
   function totalLoanPrincipal() {
@@ -434,15 +440,11 @@ const UI = (() => {
       .reduce((sum, ship) => sum + (ship.tradingCapital || 0), 0);
   }
 
-  // Kumulierte Anschaffungskosten der ueber die Basis-Ausstattung (2 Kanonen) hinaus
-  // gekauften Kanonen des Flaggschiffs, hergeleitet aus Kontor.cannonCost()'s Grenzkostenformel
-  // (300 * (aktuelle Kanonenzahl - 1) fuer die naechste Kanone). Nur das Flaggschiff kann
-  // aufgeruestet werden, daher kein Wert fuer NPC-Schiffe.
+  // Summe der tatsaechlich gezahlten Kanonen-Anschaffungskosten ueber alle Schiffe
+  // (Flaggschiff und NPC-Schiffe koennen beide aufgeruestet werden) — ship.cannonValue
+  // wird bei jedem Kauf in Kontor.buyCannon() fortgeschrieben.
   function cannonAssetValue() {
-    const ship = Fleet.playerShip();
-    if (!ship) return 0;
-    const n = ship.cannons;
-    return Math.max(0, (300 * (n - 2) * (n - 1)) / 2);
+    return Fleet.allShips().reduce((sum, ship) => sum + (ship.cannonValue || 0), 0);
   }
 
   // Wert der noch unverkauften Ware zum Einkaufspreis (nicht zum aktuellen Marktpreis) —
@@ -605,7 +607,7 @@ const UI = (() => {
     html += "<h3>Anlagevermögen</h3>";
     html += `<div class="tooltip-row"><span>Schiffe (${Fleet.allShips().length}x)</span><span>${Math.round(shipsAssetValue)} G</span></div>`;
     html += `<div class="tooltip-row"><span>Kontore</span><span>${Math.round(kontorAssetValue)} G</span></div>`;
-    html += `<div class="tooltip-row"><span>Kanonen (Flaggschiff)</span><span>${Math.round(cannonValue)} G</span></div>`;
+    html += `<div class="tooltip-row"><span>Kanonen (alle Schiffe)</span><span>${Math.round(cannonValue)} G</span></div>`;
     html += `<div class="tooltip-row"><span><b>Summe Anlagevermögen</b></span><span><b>${Math.round(fixedAssets)} G</b></span></div>`;
 
     const npcCapital = Math.round(npcTradingCapitalTotal());

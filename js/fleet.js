@@ -28,6 +28,7 @@ const Fleet = (() => {
       insurance: null,
       loan: null,
       paused: false,
+      cannonValue: 0,
     };
   }
 
@@ -240,6 +241,7 @@ const Fleet = (() => {
       loan: null,
       paused: false,
       tradingCapital: initialCapital,
+      cannonValue: 0,
     };
     state.ships.push(ship);
     return { ok: true, cost, ship };
@@ -359,6 +361,9 @@ const Fleet = (() => {
     // es geht mit dem Schiff nicht verloren, sondern kommt aufs Spielerkonto zurueck.
     const capitalReturned = ship.tradingCapital || 0;
     addGold(capitalReturned);
+    // Schiffsrumpf und investierte Kanonen sind hier hingegen endgueltig verloren
+    // (Anlagenabgang) — der Aufrufer bucht das als GuV-Verlust.
+    const cannonValueLost = ship.cannonValue || 0;
     state.ships = state.ships.filter((s) => s.id !== ship.id);
     const amount = Math.round(400 + ship.cargoCapacity * 3 + Math.random() * 300);
     const ransom = {
@@ -369,7 +374,7 @@ const Fleet = (() => {
       deadlineDay: currentDay + RANSOM_DEADLINE_DAYS,
     };
     state.ransoms.push(ransom);
-    return { insured: false, ransom, cargoLossValue, loanRepaid, loanWrittenOff, capitalReturned };
+    return { insured: false, ransom, cargoLossValue, loanRepaid, loanWrittenOff, capitalReturned, shipValue: SHIP_BASE_COST, cannonValueLost };
   }
 
   function payRansom(ransomId) {
@@ -406,7 +411,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null, paused: false, tradingCapital: 0 }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null, paused: false, tradingCapital: 0, cannonValue: 0 }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -419,6 +424,7 @@ const Fleet = (() => {
       if (ship.loan === undefined) ship.loan = null;
       if (ship.paused === undefined) ship.paused = false;
       if (ship.tradingCapital === undefined) ship.tradingCapital = 0;
+      if (ship.cannonValue === undefined) ship.cannonValue = 0;
     });
   }
 
