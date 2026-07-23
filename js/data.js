@@ -66,6 +66,10 @@ const CAPTAIN_NAMES = [
 // Wirtschaft: Versicherung, Hafengebühren, Kontor-Unterhalt
 const YEAR_LENGTH_DAYS = 360;
 const INSURANCE_ANNUAL_COST = 25;
+// Eigenstaendige zweite Police fuer die Ladung (unabhaengig von der Rumpf-
+// versicherung) — hoeher als INSURANCE_ANNUAL_COST, da eine volle Ladung
+// wertvoller Waren oft mehr wert ist als das feste SHIP_BASE_COST-Risiko.
+const CARGO_INSURANCE_ANNUAL_COST = 30;
 const HARBOR_FEE_RATE = 0.015;
 const KONTOR_UPKEEP_PER_LEVEL = 2; // Gulden/Tag je Kontor-Stufe
 

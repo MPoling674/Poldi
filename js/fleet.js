@@ -26,6 +26,7 @@ const Fleet = (() => {
       cannons: 2,
       speedBonus: 0,
       insurance: null,
+      cargoInsurance: null,
       loan: null,
       paused: false,
       cannonValue: 0,
@@ -238,6 +239,7 @@ const Fleet = (() => {
       cannons: NPC_SHIP_BASE.cannons,
       speedBonus: NPC_SHIP_BASE.speedBonus,
       insurance: null,
+      cargoInsurance: null,
       loan: null,
       paused: false,
       tradingCapital: initialCapital,
@@ -310,10 +312,20 @@ const Fleet = (() => {
   }
 
   // Anteiliger Beitrag fuer den Rest des laufenden Spieljahres (feste Jahresgrenzen ab Tag 1).
-  function insuranceCost(currentDay) {
+  function proRatedCost(currentDay, annualCost) {
     const daysIntoYear = (currentDay - 1) % YEAR_LENGTH_DAYS;
     const daysRemaining = YEAR_LENGTH_DAYS - daysIntoYear;
-    return Math.max(1, Math.round(INSURANCE_ANNUAL_COST * (daysRemaining / YEAR_LENGTH_DAYS)));
+    return Math.max(1, Math.round(annualCost * (daysRemaining / YEAR_LENGTH_DAYS)));
+  }
+
+  function insuranceCost(currentDay) {
+    return proRatedCost(currentDay, INSURANCE_ANNUAL_COST);
+  }
+
+  // Ladungsversicherung ist eine eigenstaendige zweite Police (unabhaengig von der
+  // Rumpfversicherung) — deckt nur den Warenwert an Bord, nicht das Schiff selbst.
+  function cargoInsuranceCost(currentDay) {
+    return proRatedCost(currentDay, CARGO_INSURANCE_ANNUAL_COST);
   }
 
   function nextYearBoundary(currentDay) {
@@ -327,6 +339,15 @@ const Fleet = (() => {
     if (state.gold < cost) return { ok: false, reason: "Nicht genug Gold für die Versicherungsprämie." };
     state.gold -= cost;
     ship.insurance = { active: true, dueDay: nextYearBoundary(currentDay) };
+    return { ok: true, cost };
+  }
+
+  function buyCargoInsurance(ship, currentDay) {
+    if (ship.cargoInsurance && ship.cargoInsurance.active) return { ok: false, reason: "Ladung ist bereits versichert." };
+    const cost = cargoInsuranceCost(currentDay);
+    if (state.gold < cost) return { ok: false, reason: "Nicht genug Gold für die Ladungsversicherungsprämie." };
+    state.gold -= cost;
+    ship.cargoInsurance = { active: true, dueDay: nextYearBoundary(currentDay) };
     return { ok: true, cost };
   }
 
@@ -349,8 +370,26 @@ const Fleet = (() => {
     return { renewed: false };
   }
 
+  // Analog zu checkInsuranceRenewal(), fuer die separate Ladungspolice.
+  function checkCargoInsuranceRenewal(ship, currentDay) {
+    if (!ship.cargoInsurance || !ship.cargoInsurance.active) return null;
+    if (currentDay < ship.cargoInsurance.dueDay) return null;
+    const available = ship.isPlayer ? state.gold : (ship.tradingCapital || 0);
+    if (available >= CARGO_INSURANCE_ANNUAL_COST) {
+      if (ship.isPlayer) state.gold -= CARGO_INSURANCE_ANNUAL_COST;
+      else ship.tradingCapital -= CARGO_INSURANCE_ANNUAL_COST;
+      ship.cargoInsurance.dueDay += YEAR_LENGTH_DAYS;
+      return { renewed: true, cost: CARGO_INSURANCE_ANNUAL_COST };
+    }
+    ship.cargoInsurance.active = false;
+    return { renewed: false };
+  }
+
   function destroyShip(ship, currentDay) {
     const cargoLossValue = Math.round(cargoCostValue(ship));
+    // Die Ladungspolice ist unabhaengig von der Rumpfversicherung: sie entscheidet
+    // nur, ob der Warenwert ersetzt wird, nicht ob das Schiff selbst erhalten bleibt.
+    const cargoInsured = !!(ship.cargoInsurance && ship.cargoInsurance.active);
     if (ship.insurance && ship.insurance.active) {
       // Vollersatz: Schiff bleibt im selben Slot erhalten, nur Ladung und Fahrt werden zurueckgesetzt.
       ship.cargo = {};
@@ -359,7 +398,7 @@ const Fleet = (() => {
       ship.destinationCityId = null;
       ship.progressDays = 0;
       ship.totalDays = 0;
-      return { insured: true, cargoLossValue, shipValue: SHIP_BASE_COST };
+      return { insured: true, cargoInsured, cargoLossValue, shipValue: SHIP_BASE_COST };
     }
     let loanWrittenOff = 0;
     let loanRepaid = 0;
@@ -385,7 +424,7 @@ const Fleet = (() => {
       deadlineDay: currentDay + RANSOM_DEADLINE_DAYS,
     };
     state.ransoms.push(ransom);
-    return { insured: false, ransom, cargoLossValue, loanRepaid, loanWrittenOff, capitalReturned, shipValue: SHIP_BASE_COST, cannonValueLost };
+    return { insured: false, cargoInsured, ransom, cargoLossValue, loanRepaid, loanWrittenOff, capitalReturned, shipValue: SHIP_BASE_COST, cannonValueLost };
   }
 
   function payRansom(ransomId) {
@@ -422,7 +461,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, loan: null, paused: false, tradingCapital: 0, cannonValue: 0 }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, cargoInsurance: null, loan: null, paused: false, tradingCapital: 0, cannonValue: 0 }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -432,6 +471,7 @@ const Fleet = (() => {
     state.ships.forEach((ship) => {
       if (!ship.cargoCost) ship.cargoCost = {};
       if (ship.insurance === undefined) ship.insurance = null;
+      if (ship.cargoInsurance === undefined) ship.cargoInsurance = null;
       if (ship.loan === undefined) ship.loan = null;
       if (ship.paused === undefined) ship.paused = false;
       if (ship.tradingCapital === undefined) ship.tradingCapital = 0;
@@ -475,6 +515,9 @@ const Fleet = (() => {
     insuranceCost,
     buyInsurance,
     checkInsuranceRenewal,
+    cargoInsuranceCost,
+    buyCargoInsurance,
+    checkCargoInsuranceRenewal,
     destroyShip,
     payRansom,
     expireRansoms,

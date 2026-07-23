@@ -11,6 +11,23 @@ const Pirates = (() => {
     return Fleet.destroyShip(ship, currentDay);
   }
 
+  // Formuliert die Ladungsverlust-Zeile fuer die Ereignis-Meldung und bucht bei
+  // aktiver Ladungspolice den Ersatz als Ertrag — ohne Gegenbuchung, da der
+  // Warenbestand-Wert (Bilanz) durch die geleerte Ladung bereits live sinkt
+  // (die gleiche implizite Verlustbuchung wie beim unversicherten Fall, siehe
+  // "Doppelt gebuchten Ladungsverlust..."-Fix). insuredBranch unterscheidet nur
+  // die Formulierung (Schiff bleibt vs. geht mit der Ladung verloren).
+  function cargoNoteFor(outcome, insuredBranch) {
+    if (outcome.cargoLossValue <= 0) return insuredBranch ? " Es war keine Ladung an Bord." : "";
+    if (outcome.cargoInsured) {
+      Ledger.record("cargoInsurancePayouts", outcome.cargoLossValue);
+      return ` Die Ladung war zusätzlich versichert — ${outcome.cargoLossValue} Gulden Warenwert wurden ersetzt.`;
+    }
+    return insuredBranch
+      ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.`
+      : ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.`;
+  }
+
   function resolveFight(ship, currentDay) {
     const pirateStrength = 2 + Math.random() * 4;
     const winChance = ship.cannons / (ship.cannons + pirateStrength);
@@ -28,7 +45,7 @@ const Pirates = (() => {
       // unangetastet (nur der Rumpf wird "ersetzt", das Schiffsobjekt bleibt erhalten).
       Ledger.record("insurancePayouts", outcome.shipValue);
       Ledger.record("assetDisposalLosses", outcome.shipValue);
-      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.` : " Es war keine Ladung an Bord.";
+      const cargoNote = cargoNoteFor(outcome, true);
       return {
         won: false,
         destroyed: true,
@@ -38,7 +55,7 @@ const Pirates = (() => {
     }
     if (outcome && outcome.ransom) {
       const ransom = outcome.ransom;
-      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
+      const cargoNote = cargoNoteFor(outcome, false);
       // Erlassene Restschuld ist ein echter Vermoegenszuwachs (die Verbindlichkeit
       // verschwindet ohne Gegenleistung) und muss als Ertrag verbucht werden — sonst
       // stimmt die Bilanz-Eigenkapital-Aenderung nicht mit dem GuV-Saldo ueberein.
@@ -91,7 +108,7 @@ const Pirates = (() => {
       // unangetastet (nur der Rumpf wird "ersetzt", das Schiffsobjekt bleibt erhalten).
       Ledger.record("insurancePayouts", outcome.shipValue);
       Ledger.record("assetDisposalLosses", outcome.shipValue);
-      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.` : " Es war keine Ladung an Bord.";
+      const cargoNote = cargoNoteFor(outcome, true);
       return {
         fled: false,
         destroyed: true,
@@ -101,7 +118,7 @@ const Pirates = (() => {
     }
     if (outcome && outcome.ransom) {
       const ransom = outcome.ransom;
-      const cargoNote = outcome.cargoLossValue > 0 ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.` : "";
+      const cargoNote = cargoNoteFor(outcome, false);
       // Erlassene Restschuld ist ein echter Vermoegenszuwachs (die Verbindlichkeit
       // verschwindet ohne Gegenleistung) und muss als Ertrag verbucht werden — sonst
       // stimmt die Bilanz-Eigenkapital-Aenderung nicht mit dem GuV-Saldo ueberein.

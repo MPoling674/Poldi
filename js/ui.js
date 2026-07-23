@@ -240,9 +240,16 @@ const UI = (() => {
 
   function insuranceStatusLine(ship) {
     if (ship.insurance && ship.insurance.active) {
-      return `Versichert (Verlängerung Tag ${ship.insurance.dueDay})`;
+      return `Rumpf versichert (Verlängerung Tag ${ship.insurance.dueDay})`;
     }
-    return `Unversichert`;
+    return `Rumpf unversichert`;
+  }
+
+  function cargoInsuranceStatusLine(ship) {
+    if (ship.cargoInsurance && ship.cargoInsurance.active) {
+      return `Ladung versichert (Verlängerung Tag ${ship.cargoInsurance.dueDay})`;
+    }
+    return `Ladung unversichert`;
   }
 
   function renderFleet() {
@@ -254,13 +261,16 @@ const UI = (() => {
         : ` · Heuer/Tag ~${Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship))} G`;
       const insured = ship.insurance && ship.insurance.active;
       const insuranceCost = Fleet.insuranceCost(Game.currentDay());
+      const cargoInsured = ship.cargoInsurance && ship.cargoInsurance.active;
+      const cargoInsuranceCost = Fleet.cargoInsuranceCost(Game.currentDay());
       const pausedNote = !ship.isPlayer && ship.paused ? " · Handel pausiert" : "";
       const capitalNote = !ship.isPlayer ? ` · Handelskapital: ${Math.round(ship.tradingCapital || 0)} G` : "";
       html += `<div class="kontor-city">
         <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
         ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity} · Kanonen: ${ship.cannons}${wageLine}${capitalNote}<br>
-        ${insuranceStatusLine(ship)}${pausedNote}</span>
-        ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Versichern (${insuranceCost} G)</button>`}
+        ${insuranceStatusLine(ship)} · ${cargoInsuranceStatusLine(ship)}${pausedNote}</span>
+        ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Rumpf versichern (${insuranceCost} G)</button>`}
+        ${cargoInsured ? "" : `<button data-insure-cargo="${ship.id}" ${Fleet.gold() < cargoInsuranceCost ? "disabled" : ""}>Ladung versichern (${cargoInsuranceCost} G)</button>`}
       </div>`;
       if (!ship.isPlayer) {
         const sellProceeds = Math.round(Fleet.shipValue(ship) * 0.5);
@@ -292,6 +302,9 @@ const UI = (() => {
     el.fleetShips.innerHTML = html;
     el.fleetShips.querySelectorAll("button[data-insure]").forEach((btn) => {
       btn.addEventListener("click", () => callbacks.buyInsurance && callbacks.buyInsurance(Number(btn.dataset.insure)));
+    });
+    el.fleetShips.querySelectorAll("button[data-insure-cargo]").forEach((btn) => {
+      btn.addEventListener("click", () => callbacks.buyCargoInsurance && callbacks.buyCargoInsurance(Number(btn.dataset.insureCargo)));
     });
     el.fleetShips.querySelectorAll("button[data-pause]").forEach((btn) => {
       btn.addEventListener("click", () => callbacks.pauseShip && callbacks.pauseShip(Number(btn.dataset.pause)));
@@ -406,8 +419,10 @@ const UI = (() => {
     harborFees: "Hafengebühren",
     wages: "Heuer",
     kontorUpkeep: "Kontor-Unterhalt",
-    insurancePremiums: "Versicherungsprämien",
+    insurancePremiums: "Versicherungsprämien (Rumpf)",
     insurancePayouts: "Versicherungsleistungen (Schiffsersatz)",
+    cargoInsurancePremiums: "Versicherungsprämien (Ladung)",
+    cargoInsurancePayouts: "Versicherungsleistungen (Ladungsersatz)",
     ransoms: "Lösegeld",
     shipPurchases: "Schiffskäufe",
     kontorBuilds: "Kontor-Baukosten",
@@ -417,9 +432,9 @@ const UI = (() => {
     assetDisposalLosses: "Verluste aus Anlagenabgängen",
     debtForgiveness: "Erträge aus Schuldenerlass",
   };
-  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "debtForgiveness"];
+  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "cargoInsurancePayouts", "debtForgiveness"];
   const LEDGER_EXPENSE_CATEGORIES = [
-    "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums",
+    "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums", "cargoInsurancePremiums",
     "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses",
   ];
 

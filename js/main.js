@@ -296,10 +296,22 @@ const Game = (() => {
       if (!renewal) return;
       if (renewal.renewed) {
         Ledger.record("insurancePremiums", renewal.cost);
-        UI.log(`Versicherung für ${ship.name} um ein Jahr verlängert (${renewal.cost} Gulden).`);
+        UI.log(`Rumpfversicherung für ${ship.name} um ein Jahr verlängert (${renewal.cost} Gulden).`);
       } else {
         const reason = ship.isPlayer ? "nicht genug Gold" : "nicht genug Handelskapital";
-        UI.log(`Versicherungsschutz für ${ship.name} erloschen — ${reason} zur Verlängerung.`);
+        UI.log(`Rumpfversicherung für ${ship.name} erloschen — ${reason} zur Verlängerung.`);
+      }
+    });
+
+    Fleet.allShips().forEach((ship) => {
+      const renewal = Fleet.checkCargoInsuranceRenewal(ship, day);
+      if (!renewal) return;
+      if (renewal.renewed) {
+        Ledger.record("cargoInsurancePremiums", renewal.cost);
+        UI.log(`Ladungsversicherung für ${ship.name} um ein Jahr verlängert (${renewal.cost} Gulden).`);
+      } else {
+        const reason = ship.isPlayer ? "nicht genug Gold" : "nicht genug Handelskapital";
+        UI.log(`Ladungsversicherung für ${ship.name} erloschen — ${reason} zur Verlängerung.`);
       }
     });
 
@@ -473,7 +485,17 @@ const Game = (() => {
     if (!ship) return UI.log("Schiff nicht gefunden.");
     const res = Fleet.buyInsurance(ship, day);
     if (res.ok) Ledger.record("insurancePremiums", res.cost);
-    UI.log(res.ok ? `Versicherung für ${ship.name} abgeschlossen (${res.cost} Gulden, anteilig fürs laufende Jahr).` : res.reason);
+    UI.log(res.ok ? `Rumpfversicherung für ${ship.name} abgeschlossen (${res.cost} Gulden, anteilig fürs laufende Jahr).` : res.reason);
+    UI.renderAll();
+    saveGame();
+  }
+
+  function handleBuyCargoInsurance(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.buyCargoInsurance(ship, day);
+    if (res.ok) Ledger.record("cargoInsurancePremiums", res.cost);
+    UI.log(res.ok ? `Ladungsversicherung für ${ship.name} abgeschlossen (${res.cost} Gulden, anteilig fürs laufende Jahr).` : res.reason);
     UI.renderAll();
     saveGame();
   }
@@ -626,6 +648,7 @@ const Game = (() => {
     UI.on("buyCannonForShip", handleBuyCannonForShip);
     UI.on("buyShip", handleBuyShip);
     UI.on("buyInsurance", handleBuyInsurance);
+    UI.on("buyCargoInsurance", handleBuyCargoInsurance);
     UI.on("pauseShip", handlePauseShip);
     UI.on("resumeShip", handleResumeShip);
     UI.on("sellShip", handleSellShip);
