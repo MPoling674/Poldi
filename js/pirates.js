@@ -11,16 +11,18 @@ const Pirates = (() => {
     return Fleet.destroyShip(ship, currentDay);
   }
 
-  // Formuliert die Ladungsverlust-Zeile fuer die Ereignis-Meldung und bucht bei
-  // aktiver Ladungspolice den Ersatz als Ertrag — ohne Gegenbuchung, da der
-  // Warenbestand-Wert (Bilanz) durch die geleerte Ladung bereits live sinkt
-  // (die gleiche implizite Verlustbuchung wie beim unversicherten Fall, siehe
-  // "Doppelt gebuchten Ladungsverlust..."-Fix). insuredBranch unterscheidet nur
-  // die Formulierung (Schiff bleibt vs. geht mit der Ladung verloren).
+  // Formuliert die Ladungsverlust-Zeile fuer die Ereignis-Meldung und zahlt bei
+  // aktiver Ladungspolice den Warenwert in Gold aus. Die Ladung selbst ist mit
+  // dem Schiff/der Fahrt physisch weg, der Warenbestand-Wert (Bilanz) sinkt dadurch
+  // bereits live — die Gold-Gutschrift ist die noetige Gegenbuchung, sonst stimmt
+  // der Ertrag im GuV nicht mit einem tatsaechlichen Vermoegenszuwachs ueberein
+  // (Ertrag ohne Ersatz in Ware oder Geld). insuredBranch unterscheidet nur die
+  // Formulierung (Schiff bleibt vs. geht mit der Ladung verloren).
   function cargoNoteFor(outcome, insuredBranch) {
     if (outcome.cargoLossValue <= 0) return insuredBranch ? " Es war keine Ladung an Bord." : "";
     if (outcome.cargoInsured) {
       Ledger.record("cargoInsurancePayouts", outcome.cargoLossValue);
+      Fleet.addGold(outcome.cargoLossValue);
       return ` Die Ladung war zusätzlich versichert — ${outcome.cargoLossValue} Gulden Warenwert wurden ersetzt.`;
     }
     return insuredBranch
@@ -34,6 +36,7 @@ const Pirates = (() => {
     if (Math.random() < winChance) {
       const loot = Math.round(50 + Math.random() * 100);
       Fleet.addGold(loot);
+      Ledger.record("pirateLoot", loot);
       return { won: true, destroyed: false, message: `Die Piraten wurden abgewehrt! Erbeutet: ${loot} Gulden.` };
     }
 

@@ -23,6 +23,8 @@ const Fleet = (() => {
       cargo: {},
       cargoCost: {},
       cargoCapacity: 100,
+      baseCargoCapacity: 100,
+      cargoExpansionLevel: 0,
       cannons: 2,
       speedBonus: 0,
       insurance: null,
@@ -30,6 +32,7 @@ const Fleet = (() => {
       loan: null,
       paused: false,
       cannonValue: 0,
+      cargoExpansionValue: 0,
     };
   }
 
@@ -236,6 +239,8 @@ const Fleet = (() => {
       cargo: {},
       cargoCost: {},
       cargoCapacity: NPC_SHIP_BASE.cargoCapacity,
+      baseCargoCapacity: NPC_SHIP_BASE.cargoCapacity,
+      cargoExpansionLevel: 0,
       cannons: NPC_SHIP_BASE.cannons,
       speedBonus: NPC_SHIP_BASE.speedBonus,
       insurance: null,
@@ -244,6 +249,7 @@ const Fleet = (() => {
       paused: false,
       tradingCapital: initialCapital,
       cannonValue: 0,
+      cargoExpansionValue: 0,
     };
     state.ships.push(ship);
     return { ok: true, cost, ship };
@@ -318,14 +324,25 @@ const Fleet = (() => {
     return Math.max(1, Math.round(annualCost * (daysRemaining / YEAR_LENGTH_DAYS)));
   }
 
-  function insuranceCost(currentDay) {
-    return proRatedCost(currentDay, INSURANCE_ANNUAL_COST);
+  // Jahrespraemie eines Schiffs, skaliert mit der Anzahl gekaufter Laderaum-Ausbaustufen
+  // (je Stufe +10%, siehe CARGO_EXPANSION_STEP) — ein groesserer Laderaum bedeutet ein
+  // hoeheres versichertes Risiko, sowohl fuer den Rumpf als auch fuer die Ladung.
+  function shipInsuranceAnnualCost(ship) {
+    return Math.round(INSURANCE_ANNUAL_COST * (1 + CARGO_EXPANSION_STEP * (ship.cargoExpansionLevel || 0)));
+  }
+
+  function shipCargoInsuranceAnnualCost(ship) {
+    return Math.round(CARGO_INSURANCE_ANNUAL_COST * (1 + CARGO_EXPANSION_STEP * (ship.cargoExpansionLevel || 0)));
+  }
+
+  function insuranceCost(ship, currentDay) {
+    return proRatedCost(currentDay, shipInsuranceAnnualCost(ship));
   }
 
   // Ladungsversicherung ist eine eigenstaendige zweite Police (unabhaengig von der
   // Rumpfversicherung) — deckt nur den Warenwert an Bord, nicht das Schiff selbst.
-  function cargoInsuranceCost(currentDay) {
-    return proRatedCost(currentDay, CARGO_INSURANCE_ANNUAL_COST);
+  function cargoInsuranceCost(ship, currentDay) {
+    return proRatedCost(currentDay, shipCargoInsuranceAnnualCost(ship));
   }
 
   function nextYearBoundary(currentDay) {
@@ -335,7 +352,7 @@ const Fleet = (() => {
 
   function buyInsurance(ship, currentDay) {
     if (ship.insurance && ship.insurance.active) return { ok: false, reason: "Schiff ist bereits versichert." };
-    const cost = insuranceCost(currentDay);
+    const cost = insuranceCost(ship, currentDay);
     if (state.gold < cost) return { ok: false, reason: "Nicht genug Gold für die Versicherungsprämie." };
     state.gold -= cost;
     ship.insurance = { active: true, dueDay: nextYearBoundary(currentDay) };
@@ -344,7 +361,7 @@ const Fleet = (() => {
 
   function buyCargoInsurance(ship, currentDay) {
     if (ship.cargoInsurance && ship.cargoInsurance.active) return { ok: false, reason: "Ladung ist bereits versichert." };
-    const cost = cargoInsuranceCost(currentDay);
+    const cost = cargoInsuranceCost(ship, currentDay);
     if (state.gold < cost) return { ok: false, reason: "Nicht genug Gold für die Ladungsversicherungsprämie." };
     state.gold -= cost;
     ship.cargoInsurance = { active: true, dueDay: nextYearBoundary(currentDay) };
@@ -359,12 +376,16 @@ const Fleet = (() => {
   function checkInsuranceRenewal(ship, currentDay) {
     if (!ship.insurance || !ship.insurance.active) return null;
     if (currentDay < ship.insurance.dueDay) return null;
+    // Die volle Jahrespraemie zur Verlaengerung spiegelt die zum Faelligkeitstag aktuelle
+    // Laderaum-Ausbaustufe wider — Zwischenstufen wurden bereits anteilig ueber
+    // expandCargoHold() nachberechnet.
+    const annualCost = shipInsuranceAnnualCost(ship);
     const available = ship.isPlayer ? state.gold : (ship.tradingCapital || 0);
-    if (available >= INSURANCE_ANNUAL_COST) {
-      if (ship.isPlayer) state.gold -= INSURANCE_ANNUAL_COST;
-      else ship.tradingCapital -= INSURANCE_ANNUAL_COST;
+    if (available >= annualCost) {
+      if (ship.isPlayer) state.gold -= annualCost;
+      else ship.tradingCapital -= annualCost;
       ship.insurance.dueDay += YEAR_LENGTH_DAYS;
-      return { renewed: true, cost: INSURANCE_ANNUAL_COST };
+      return { renewed: true, cost: annualCost };
     }
     ship.insurance.active = false;
     return { renewed: false };
@@ -374,15 +395,47 @@ const Fleet = (() => {
   function checkCargoInsuranceRenewal(ship, currentDay) {
     if (!ship.cargoInsurance || !ship.cargoInsurance.active) return null;
     if (currentDay < ship.cargoInsurance.dueDay) return null;
+    const annualCost = shipCargoInsuranceAnnualCost(ship);
     const available = ship.isPlayer ? state.gold : (ship.tradingCapital || 0);
-    if (available >= CARGO_INSURANCE_ANNUAL_COST) {
-      if (ship.isPlayer) state.gold -= CARGO_INSURANCE_ANNUAL_COST;
-      else ship.tradingCapital -= CARGO_INSURANCE_ANNUAL_COST;
+    if (available >= annualCost) {
+      if (ship.isPlayer) state.gold -= annualCost;
+      else ship.tradingCapital -= annualCost;
       ship.cargoInsurance.dueDay += YEAR_LENGTH_DAYS;
-      return { renewed: true, cost: CARGO_INSURANCE_ANNUAL_COST };
+      return { renewed: true, cost: annualCost };
     }
     ship.cargoInsurance.active = false;
     return { renewed: false };
+  }
+
+  // Werftkosten fuer die naechste Laderaum-Ausbaustufe — steigt pro Stufe an, analog zu
+  // Kontor.cannonCost().
+  function cargoExpansionCost(ship) {
+    const level = ship.cargoExpansionLevel || 0;
+    return Math.round(SHIP_BASE_COST * CARGO_EXPANSION_STEP * (level + 1));
+  }
+
+  // Erweitert den Laderaum eines Schiffs um eine Stufe (+10% der urspruenglichen Kapazitaet,
+  // maximal +100% bei Stufe 10). Ist eine Rumpf- bzw. Ladungspolice aktiv, wird die laufende
+  // Praemie sofort anteilig fuer den Rest des Spieljahres um den gleichen Prozentsatz erhoeht
+  // (wie beim Erstabschluss ueber proRatedCost) — die naechste Jahres-Verlaengerung berechnet
+  // sich danach automatisch aus der neuen Stufe (siehe shipInsuranceAnnualCost/
+  // shipCargoInsuranceAnnualCost). Wie Kanonenkaeufe eine Kapitalausgabe aus der gemeinsamen
+  // Kriegskasse, unabhaengig vom Handelskapital des Schiffs.
+  function expandCargoHold(ship, currentDay) {
+    const level = ship.cargoExpansionLevel || 0;
+    if (level >= CARGO_EXPANSION_MAX_LEVEL) return { ok: false, reason: "Laderaum ist bereits maximal ausgebaut (+100%)." };
+    const cost = cargoExpansionCost(ship);
+    const hullSurcharge = ship.insurance && ship.insurance.active
+      ? proRatedCost(currentDay, INSURANCE_ANNUAL_COST * CARGO_EXPANSION_STEP) : 0;
+    const cargoSurcharge = ship.cargoInsurance && ship.cargoInsurance.active
+      ? proRatedCost(currentDay, CARGO_INSURANCE_ANNUAL_COST * CARGO_EXPANSION_STEP) : 0;
+    const totalCost = cost + hullSurcharge + cargoSurcharge;
+    if (state.gold < totalCost) return { ok: false, reason: `Nicht genug Gold (benötigt: ${totalCost} G).` };
+    state.gold -= totalCost;
+    ship.cargoExpansionLevel = level + 1;
+    ship.cargoCapacity += Math.round(ship.baseCargoCapacity * CARGO_EXPANSION_STEP);
+    ship.cargoExpansionValue = (ship.cargoExpansionValue || 0) + cost;
+    return { ok: true, cost, hullSurcharge, cargoSurcharge, newLevel: ship.cargoExpansionLevel, newCapacity: ship.cargoCapacity };
   }
 
   function destroyShip(ship, currentDay) {
@@ -461,7 +514,7 @@ const Fleet = (() => {
       // Migration: altes Einzelschiff-Format (vor Einführung der Flotte)
       state = {
         gold: saved.gold,
-        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, cargoInsurance: null, loan: null, paused: false, tradingCapital: 0, cannonValue: 0 }],
+        ships: [{ ...saved, id: 0, name: "Flaggschiff", captain: "Du", isPlayer: true, cargoCost: {}, insurance: null, cargoInsurance: null, loan: null, paused: false, tradingCapital: 0, cannonValue: 0, baseCargoCapacity: saved.cargoCapacity, cargoExpansionLevel: 0, cargoExpansionValue: 0 }],
         ransoms: [],
       };
       delete state.ships[0].gold;
@@ -476,6 +529,10 @@ const Fleet = (() => {
       if (ship.paused === undefined) ship.paused = false;
       if (ship.tradingCapital === undefined) ship.tradingCapital = 0;
       if (ship.cannonValue === undefined) ship.cannonValue = 0;
+      // Bestandsschiffe ohne Ausbau-Historie: aktuelle Kapazitaet ist die Basis (Stufe 0).
+      if (ship.baseCargoCapacity === undefined) ship.baseCargoCapacity = ship.cargoCapacity;
+      if (ship.cargoExpansionLevel === undefined) ship.cargoExpansionLevel = 0;
+      if (ship.cargoExpansionValue === undefined) ship.cargoExpansionValue = 0;
     });
   }
 
@@ -518,6 +575,8 @@ const Fleet = (() => {
     cargoInsuranceCost,
     buyCargoInsurance,
     checkCargoInsuranceRenewal,
+    cargoExpansionCost,
+    expandCargoHold,
     destroyShip,
     payRansom,
     expireRansoms,

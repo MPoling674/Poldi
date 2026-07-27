@@ -73,6 +73,13 @@ const CARGO_INSURANCE_ANNUAL_COST = 30;
 const HARBOR_FEE_RATE = 0.015;
 const KONTOR_UPKEEP_PER_LEVEL = 2; // Gulden/Tag je Kontor-Stufe
 
+// Laderaum-Ausbau: pro Stufe +10 Prozentpunkte der urspruenglichen Kapazitaet,
+// maximal 10 Stufen (= +100%, Verdoppelung). Aktive Policen (Rumpf/Ladung)
+// werden bei jeder Stufe im gleichen Verhaeltnis teurer (siehe shipInsuranceAnnualCost
+// / shipCargoInsuranceAnnualCost in fleet.js).
+const CARGO_EXPANSION_MAX_LEVEL = 10;
+const CARGO_EXPANSION_STEP = 0.1;
+
 function shipStrength(ship) {
   return ship.cannons * 3 + ship.cargoCapacity * 0.1;
 }

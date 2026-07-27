@@ -500,6 +500,25 @@ const Game = (() => {
     saveGame();
   }
 
+  function handleExpandCargoHold(shipId) {
+    const ship = Fleet.getShip(shipId);
+    if (!ship) return UI.log("Schiff nicht gefunden.");
+    const res = Fleet.expandCargoHold(ship, day);
+    if (!res.ok) {
+      UI.log(res.reason);
+      UI.renderAll();
+      return;
+    }
+    Ledger.record("cargoExpansionPurchases", res.cost);
+    if (res.hullSurcharge > 0) Ledger.record("insurancePremiums", res.hullSurcharge);
+    if (res.cargoSurcharge > 0) Ledger.record("cargoInsurancePremiums", res.cargoSurcharge);
+    const surcharge = res.hullSurcharge + res.cargoSurcharge;
+    const surchargeNote = surcharge > 0 ? ` Versicherungsprämien anteilig um ${surcharge} Gulden erhöht.` : "";
+    UI.log(`Laderaum von ${ship.name} auf ${res.newCapacity} erweitert (Stufe ${res.newLevel}/${CARGO_EXPANSION_MAX_LEVEL}, ${res.cost} Gulden).${surchargeNote}`);
+    UI.renderAll();
+    saveGame();
+  }
+
   function handlePauseShip(shipId) {
     const ship = Fleet.getShip(shipId);
     if (!ship) return UI.log("Schiff nicht gefunden.");
@@ -649,6 +668,7 @@ const Game = (() => {
     UI.on("buyShip", handleBuyShip);
     UI.on("buyInsurance", handleBuyInsurance);
     UI.on("buyCargoInsurance", handleBuyCargoInsurance);
+    UI.on("expandCargoHold", handleExpandCargoHold);
     UI.on("pauseShip", handlePauseShip);
     UI.on("resumeShip", handleResumeShip);
     UI.on("sellShip", handleSellShip);
