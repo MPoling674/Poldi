@@ -8,3 +8,4 @@
 
 **Behoben**
 - Gulden, die im Kampf gegen Piraten erbeutet werden, erscheinen jetzt korrekt als Ertrag ("Piratenbeute") in der Gewinn- und Verlustrechnung — vorher wurde das Gold zwar gutgeschrieben, tauchte aber nirgends in der GuV auf.
+- Ware, die durch Piraten geraubt wird (Teilraub oder unversicherter Totalverlust), wird jetzt als eigener Posten "davon: Warenverluste durch Piraten" unter dem Wareneinkauf ausgewiesen — vorher ging der Verlust unbenannt im Saldo unter. Die Log-Meldungen zeigen dabei zusätzlich den Warenwert des Raubs.

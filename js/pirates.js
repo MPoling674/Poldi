@@ -11,13 +11,18 @@ const Pirates = (() => {
     return Fleet.destroyShip(ship, currentDay);
   }
 
-  // Formuliert die Ladungsverlust-Zeile fuer die Ereignis-Meldung und zahlt bei
-  // aktiver Ladungspolice den Warenwert in Gold aus. Die Ladung selbst ist mit
+  // Formuliert die Ladungsverlust-Zeile fuer die Ereignis-Meldung. Bei aktiver
+  // Ladungspolice wird der Warenwert in Gold ausgezahlt (die Ladung selbst ist mit
   // dem Schiff/der Fahrt physisch weg, der Warenbestand-Wert (Bilanz) sinkt dadurch
   // bereits live — die Gold-Gutschrift ist die noetige Gegenbuchung, sonst stimmt
-  // der Ertrag im GuV nicht mit einem tatsaechlichen Vermoegenszuwachs ueberein
-  // (Ertrag ohne Ersatz in Ware oder Geld). insuredBranch unterscheidet nur die
-  // Formulierung (Schiff bleibt vs. geht mit der Ladung verloren).
+  // der Ertrag im GuV nicht mit einem tatsaechlichen Vermoegenszuwachs ueberein).
+  // Ohne Police wird der Verlust als "Warenverluste durch Piraten" gebucht — ein
+  // davon-Vermerk zum Wareneinsatz (siehe Ledger.record-Aufruf in resolveFight/
+  // resolveFlee bei Teilraub), damit Diebstahl in der GuV sichtbar bleibt statt
+  // unbenannt im Wareneinkauf/Warenbestand unterzugehen (Saldo bleibt unveraendert,
+  // die Zeile wird in ui.js nicht nochmal in die Aufwandssumme eingerechnet).
+  // insuredBranch unterscheidet nur die Formulierung (Schiff bleibt vs. geht mit
+  // der Ladung verloren).
   function cargoNoteFor(outcome, insuredBranch) {
     if (outcome.cargoLossValue <= 0) return insuredBranch ? " Es war keine Ladung an Bord." : "";
     if (outcome.cargoInsured) {
@@ -25,6 +30,7 @@ const Pirates = (() => {
       Fleet.addGold(outcome.cargoLossValue);
       return ` Die Ladung war zusätzlich versichert — ${outcome.cargoLossValue} Gulden Warenwert wurden ersetzt.`;
     }
+    Ledger.record("cargoLossesPirates", outcome.cargoLossValue);
     return insuredBranch
       ? ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist verloren.`
       : ` Die Ladung im Wert von ${outcome.cargoLossValue} Gulden ist mit dem Schiff verloren.`;
@@ -86,8 +92,10 @@ const Pirates = (() => {
     if (cargoGoodIds.length > 0) {
       const goodId = cargoGoodIds[Math.floor(Math.random() * cargoGoodIds.length)];
       const lost = Math.max(1, Math.round(ship.cargo[goodId] * 0.3));
+      const lostValue = Math.round(Fleet.cargoUnitCost(ship, goodId) * lost);
       Fleet.removeCargo(ship, goodId, lost);
-      cargoMsg = ` Zudem wurden ${lost} Einheiten ${getGood(goodId).name} geraubt.`;
+      Ledger.record("cargoLossesPirates", lostValue);
+      cargoMsg = ` Zudem wurden ${lost} Einheiten ${getGood(goodId).name} geraubt (Warenwert ${lostValue} Gulden).`;
     }
     Fleet.addDelay(ship, 1);
     return {
@@ -146,8 +154,10 @@ const Pirates = (() => {
     if (cargoGoodIds.length > 0) {
       const goodId = cargoGoodIds[Math.floor(Math.random() * cargoGoodIds.length)];
       const lost = Math.max(1, Math.round(ship.cargo[goodId] * 0.2));
+      const lostValue = Math.round(Fleet.cargoUnitCost(ship, goodId) * lost);
       Fleet.removeCargo(ship, goodId, lost);
-      cargoMsg = `${lost} Einheiten ${getGood(goodId).name} wurden bei der Verfolgung über Bord geworfen.`;
+      Ledger.record("cargoLossesPirates", lostValue);
+      cargoMsg = `${lost} Einheiten ${getGood(goodId).name} (Warenwert ${lostValue} Gulden) wurden bei der Verfolgung über Bord geworfen.`;
     }
     return { fled: false, destroyed: false, message: `Die Flucht misslang! ${cargoMsg}` };
   }

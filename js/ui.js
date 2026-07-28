@@ -436,6 +436,7 @@ const UI = (() => {
     cannonPurchases: "Kanonenkäufe",
     pirateLosses: "Piratenverluste",
     pirateLoot: "Piratenbeute",
+    cargoLossesPirates: "davon: Warenverluste durch Piraten",
     loanInterest: "Kreditzinsen",
     assetDisposalLosses: "Verluste aus Anlagenabgängen",
     debtForgiveness: "Erträge aus Schuldenerlass",
@@ -621,6 +622,14 @@ const UI = (() => {
       const amount = Math.round(summary[cat] || 0);
       totalExpense += amount;
       html += `<div class="tooltip-row"><span>${LEDGER_LABELS[cat]}</span><span>${amount} G</span></div>`;
+      // Davon-Vermerk: nicht unbenannt im Wareneinkauf/Warenbestand verschwinden lassen —
+      // ohne Ladungspolice verlorene Ware ist bereits ueber die niedrigere Warenbestand-Zeile
+      // im Saldo beruecksichtigt (siehe Pirates.cargoNoteFor), daher hier NICHT nochmal zu
+      // totalExpense addieren, sonst Doppelbuchung.
+      if (cat === "tradeCost") {
+        const cargoLossValue = Math.round(summary.cargoLossesPirates || 0);
+        html += `<div class="tooltip-row" style="padding-left:1.5em;opacity:.75;"><span>${LEDGER_LABELS.cargoLossesPirates}</span><span>${cargoLossValue} G</span></div>`;
+      }
     });
 
     const saldo = totalIncome - totalExpense;

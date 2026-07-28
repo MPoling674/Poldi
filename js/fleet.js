@@ -80,13 +80,19 @@ const Fleet = (() => {
     return value;
   }
 
+  // Stueckkosten einer Warenart an Bord (Einkaufspreis), mit dem gleichen Fallback wie
+  // cargoCostValue() fuer Bestaende ohne bekannten Einkaufspreis (z.B. alte Spielstaende).
+  function cargoUnitCost(ship, goodId) {
+    const unitCost = avgCost(ship, goodId);
+    return unitCost !== null ? unitCost : Market.buyPrice(ship.currentCityId, goodId);
+  }
+
   // Wert der Ladung zum Einkaufspreis (statt Verkaufspreis) — fuer Verlustbuchungen,
   // damit sie zur "Warenbestand"-Bewertung in der Bilanz passen.
   function cargoCostValue(ship) {
     let value = 0;
     Object.entries(ship.cargo).forEach(([goodId, qty]) => {
-      const unitCost = avgCost(ship, goodId);
-      value += (unitCost !== null ? unitCost : Market.buyPrice(ship.currentCityId, goodId)) * qty;
+      value += cargoUnitCost(ship, goodId) * qty;
     });
     return value;
   }
@@ -547,6 +553,7 @@ const Fleet = (() => {
     cargoUsed,
     cargoFree,
     cargoValue,
+    cargoUnitCost,
     daysFor,
     startVoyage,
     addDelay,

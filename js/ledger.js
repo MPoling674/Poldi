@@ -18,6 +18,7 @@ const Ledger = (() => {
       cannonPurchases: 0,
       pirateLosses: 0,
       pirateLoot: 0,
+      cargoLossesPirates: 0,
       loanInterest: 0,
       assetDisposalLosses: 0,
       debtForgiveness: 0,
