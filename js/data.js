@@ -49,6 +49,15 @@ const IMPORT_PRICE_FACTOR = 1.25;
 // Flotte: kaufbare NPC-Schiffe, Heuer, Verlustrisiko
 const NPC_SHIP_BASE = { cargoCapacity: 80, cannons: 1, speedBonus: 0 };
 const SHIP_BASE_COST = 1000; // Kosten = SHIP_BASE_COST * aktuelle Schiffsanzahl
+
+// Einheitliche Masten-Tabellen fuer Laderaum und Buchwert (index = Mastanzahl 0–3).
+// Gilt fuer alle Schiffe — Flaggschiff (3 Masten), NPC-Koggen (2 Masten) und erbeutete
+// Prisen. Buchwert erbeuteter Schiffe wird als Ertrag gebucht (HGB § 253 Abs. 1 Satz 1:
+// Bewertung unentgeltlich erworbener Anlagen zum beizulegenden Zeitwert).
+// SHIP_VALUE_BY_MASTS[3] === SHIP_BASE_COST stellt die Konsistenz mit gekauften
+// Dreimastern sicher.
+const SHIP_CAPACITY_BY_MASTS = [0, 60, 80, 100];
+const SHIP_VALUE_BY_MASTS    = [0, Math.round(SHIP_BASE_COST * 0.4), Math.round(SHIP_BASE_COST * 0.7), SHIP_BASE_COST];
 const WAGE_BASE = 3; // Gulden/Tag Grundheuer je NPC-Schiff
 const WAGE_CARGO_RATE = 0.03; // + 3% des aktuellen Ladungswerts/Tag
 const WAGE_STRENGTH_RATE = 1; // + 1 G/Tag je Punkt "Stärke" (Kanonen/Groesse)

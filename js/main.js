@@ -714,10 +714,13 @@ const Game = (() => {
       const gold = offer.boardingGold;
       Fleet.addGold(gold);
       Ledger.record("pirateLoot", gold);
+      // HGB-Zugangsbuchung: Prise wird zum beizulegenden Zeitwert aktiviert; gleicher Betrag
+      // als Ertrag "Ertraege aus Schiffszugaengen (Prisen)" — Bilanz und GuV bleiben ausgeglichen.
+      Ledger.record("shipCaptures", res.captureValue);
       UI.log(
         `⚓ ${res.ship.name} (Kapitän ${res.ship.captain}) in die Flotte aufgenommen — ` +
-        `${offer.cannons} Kanone${offer.cannons !== 1 ? "n" : ""}, ${offer.capacity} Laderaum. ` +
-        `Wartet pausiert in ${getCity(landingCityId).name}. Erbeutet: ${gold} Gulden.`
+        `${offer.masts} Mast${offer.masts !== 1 ? "en" : ""}, ${offer.cannons} Kanone${offer.cannons !== 1 ? "n" : ""}, ${offer.capacity} Laderaum. ` +
+        `Buchwert: ${res.captureValue} G · Wartet pausiert in ${getCity(landingCityId).name}. Erbeutet: ${gold} Gulden.`
       );
     } else {
       const gold = offer.plunderGold;

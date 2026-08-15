@@ -22,15 +22,18 @@ const Fleet = (() => {
       totalDays: 0,
       cargo: {},
       cargoCost: {},
-      cargoCapacity: 100,
-      baseCargoCapacity: 100,
+      // 3-Master: Grundladeraum = SHIP_CAPACITY_BY_MASTS[3] = 100
+      cargoCapacity: SHIP_CAPACITY_BY_MASTS[3],
+      baseCargoCapacity: SHIP_CAPACITY_BY_MASTS[3],
       cargoExpansionLevel: 0,
+      masts: 3,
       cannons: 2,
       speedBonus: 0,
       insurance: null,
       cargoInsurance: null,
       loan: null,
       paused: false,
+      bookValue: SHIP_VALUE_BY_MASTS[3], // = SHIP_BASE_COST
       cannonValue: 0,
       cargoExpansionValue: 0,
     };
@@ -193,8 +196,13 @@ const Fleet = (() => {
     return SHIP_BASE_COST * state.ships.length;
   }
 
+  // Buchwert des Schiffsrumpfs — ohne Kanonen und Laderaum-Ausbau (die werden separat
+  // in der Bilanz als cannonValue/cargoExpansionValue erfasst).
+  // Fuer gekaufte Schiffe gilt der Anschaffungspreis (= SHIP_BASE_COST, da wir keine
+  // degressiven Abschreibungen simulieren). Fuer erbeutete Prisen der Zeitwert bei Zugang
+  // (SHIP_VALUE_BY_MASTS[masts]). ship.bookValue wird bei Erzeugung des Schiffs gesetzt.
   function shipValue(ship) {
-    return SHIP_BASE_COST;
+    return ship.bookValue !== undefined ? ship.bookValue : SHIP_BASE_COST;
   }
 
   function borrowAgainstShip(ship, amount) {
@@ -232,6 +240,8 @@ const Fleet = (() => {
     // Kauf verbleibenden Goldes) statt frei aus der gemeinsamen Kriegskasse zu handeln.
     const initialCapital = becomesFlagship ? 0 : Math.round(state.gold * 0.5);
     state.gold -= initialCapital;
+    // NPC-Koggen sind 2-Master (Laderaum 80 = SHIP_CAPACITY_BY_MASTS[2]).
+    // Buchwert = SHIP_BASE_COST (Anschaffungskosten-Prinzip: Preis gezahlt).
     const ship = {
       id: nextId,
       name: becomesFlagship ? "Flaggschiff" : `Kogge ${number}`,
@@ -247,6 +257,7 @@ const Fleet = (() => {
       cargoCapacity: NPC_SHIP_BASE.cargoCapacity,
       baseCargoCapacity: NPC_SHIP_BASE.cargoCapacity,
       cargoExpansionLevel: 0,
+      masts: 2,
       cannons: NPC_SHIP_BASE.cannons,
       speedBonus: NPC_SHIP_BASE.speedBonus,
       insurance: null,
@@ -254,6 +265,7 @@ const Fleet = (() => {
       loan: null,
       paused: false,
       tradingCapital: initialCapital,
+      bookValue: SHIP_BASE_COST, // Anschaffungskosten als Buchwert
       cannonValue: 0,
       cargoExpansionValue: 0,
     };
@@ -262,12 +274,19 @@ const Fleet = (() => {
   }
 
   // Nimmt ein besiegtes Piratenschiff als Prise in die Flotte auf. Es startet pausiert
-  // am Zielhafen (oder aktuellem Hafen), ohne Handelskapital und ohne Versicherung.
-  // Kanonenwert = 0, da die Piratenkanonen nicht bezahlt wurden (Bilanz bleibt konsistent).
+  // am Zielhafen, ohne Handelskapital und ohne Versicherung.
+  //
+  // HGB-Buchung: Prisen gelten als unentgeltlich erworbene Wirtschaftsgueter und muessen
+  // zum beizulegenden Zeitwert (Zeitwert nach Mastanzahl = SHIP_VALUE_BY_MASTS) aktiviert
+  // werden; der gleiche Betrag wird als Ertrag ("Ertraege aus Schiffszugaengen") gebucht,
+  // damit Bilanz und GuV ausgeglichen bleiben. Die Buchung macht der Aufrufer (main.js).
+  //
+  // Kanonenwert = 0 (nicht selbst bezahlt), Laderaum-Ausbau-Wert = 0.
+  // Spaeters expandCargoHold() schreibt cargoExpansionValue dann regulaer fort.
   // Schiffsname: Artikel abgestreift ("die Schwarze Möwe" → "Schwarze Möwe").
   function captureShip(offer, cityId) {
-    const capacityByMasts = [0, 60, 80, 100];
-    const capacity = capacityByMasts[offer.masts] || 80;
+    const capacity  = SHIP_CAPACITY_BY_MASTS[offer.masts] || SHIP_CAPACITY_BY_MASTS[2];
+    const bookValue = SHIP_VALUE_BY_MASTS[offer.masts]    || SHIP_VALUE_BY_MASTS[2];
     const captain = CAPTAIN_NAMES[Math.floor(Math.random() * CAPTAIN_NAMES.length)];
     const nextId = state.ships.length > 0 ? Math.max(...state.ships.map((s) => s.id)) + 1 : 1;
     const shipName = offer.name.replace(/^(die|der|das|den) /i, "");
@@ -284,8 +303,9 @@ const Fleet = (() => {
       cargo: {},
       cargoCost: {},
       cargoCapacity: capacity,
-      baseCargoCapacity: capacity,
+      baseCargoCapacity: capacity, // Basis fuer Ausbauberechnung (ohne Erweiterungen)
       cargoExpansionLevel: 0,
+      masts: offer.masts,
       cannons: offer.cannons,
       speedBonus: 0,
       insurance: null,
@@ -293,11 +313,13 @@ const Fleet = (() => {
       loan: null,
       paused: true, // Spieler entscheidet, wann das Schiff zum Handel aufbricht
       tradingCapital: 0,
-      cannonValue: 0, // nicht selbst bezahlt
+      bookValue, // Zeitwert bei Zugang (nach § 253 HGB), Basis fuer spaeteren Abgang/Beleihung
+      cannonValue: 0, // Piratenkanonen: nicht selbst bezahlt, kein Anschaffungswert
       cargoExpansionValue: 0,
     };
     state.ships.push(ship);
-    return { ok: true, ship };
+    // captureValue = der als Ertrag zu buchende Zeitwert (== bookValue)
+    return { ok: true, ship, captureValue: bookValue };
   }
 
   // Pausieren wirkt sofort: eine laufende Fahrt wird abgebrochen, das Schiff kehrt in
@@ -578,6 +600,13 @@ const Fleet = (() => {
       if (ship.baseCargoCapacity === undefined) ship.baseCargoCapacity = ship.cargoCapacity;
       if (ship.cargoExpansionLevel === undefined) ship.cargoExpansionLevel = 0;
       if (ship.cargoExpansionValue === undefined) ship.cargoExpansionValue = 0;
+      // Migration: Mastanzahl aus Grundladeraum ableiten (SHIP_CAPACITY_BY_MASTS-Lookup).
+      if (ship.masts === undefined) {
+        const idx = SHIP_CAPACITY_BY_MASTS.indexOf(ship.baseCargoCapacity);
+        ship.masts = idx > 0 ? idx : (ship.baseCargoCapacity >= 100 ? 3 : ship.baseCargoCapacity >= 80 ? 2 : 1);
+      }
+      // Migration: Buchwert fuer Bestandsschiffe (waren alle gekauft → Anschaffungskosten).
+      if (ship.bookValue === undefined) ship.bookValue = SHIP_BASE_COST;
     });
   }
 

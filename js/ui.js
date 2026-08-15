@@ -410,9 +410,13 @@ const UI = (() => {
       const expansionLevel = ship.cargoExpansionLevel || 0;
       const expansionMaxed = expansionLevel >= CARGO_EXPANSION_MAX_LEVEL;
       const expansionCost = Fleet.cargoExpansionCost(ship);
+      const mastsLabel = ship.masts !== undefined
+        ? `${ship.masts} Mast${ship.masts !== 1 ? "en" : ""}`
+        : "";
+      const mastsNote = mastsLabel ? ` · ${mastsLabel}` : "";
       html += `<div class="kontor-city">
         <span><b>${ship.name}</b> (Kapitän: ${ship.isPlayer ? "Du" : ship.captain})<br>
-        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity} (Ausbaustufe ${expansionLevel}/${CARGO_EXPANSION_MAX_LEVEL}) · Kanonen: ${ship.cannons}${wageLine}${capitalNote}<br>
+        ${shipStatusLine(ship)} · Ladung ${cargoUsed}/${ship.cargoCapacity} (Ausbaustufe ${expansionLevel}/${CARGO_EXPANSION_MAX_LEVEL})${mastsNote} · Kanonen: ${ship.cannons}${wageLine}${capitalNote}<br>
         ${insuranceStatusLine(ship)} · ${cargoInsuranceStatusLine(ship)}${pausedNote}</span>
         ${insured ? "" : `<button data-insure="${ship.id}" ${Fleet.gold() < insuranceCost ? "disabled" : ""}>Rumpf versichern (${insuranceCost} G)</button>`}
         ${cargoInsured ? "" : `<button data-insure-cargo="${ship.id}" ${Fleet.gold() < cargoInsuranceCost ? "disabled" : ""}>Ladung versichern (${cargoInsuranceCost} G)</button>`}
@@ -567,9 +571,12 @@ const UI = (() => {
   function showCaptureModal(offer) {
     _pirateModalMode = "capture";
     el.pirateModalTitle.textContent = "Schiff gekapert!";
-    const mastsStr = `${offer.masts} Mast${offer.masts !== 1 ? "en" : ""}`;
+    const mastsStr   = `${offer.masts} Mast${offer.masts !== 1 ? "en" : ""}`;
     const cannonsStr = `${offer.cannons} Kanone${offer.cannons !== 1 ? "n" : ""}`;
-    const rawName = offer.name.replace(/^(die|der|das|den) /i, "");
+    const rawName    = offer.name.replace(/^(die|der|das|den) /i, "");
+    // Buchwert (Zeitwert) direkt aus der einheitlichen Tabelle lesen — konsistent mit fleet.js
+    const bookValue  = (typeof SHIP_VALUE_BY_MASTS !== "undefined" && SHIP_VALUE_BY_MASTS[offer.masts])
+      || [0, 400, 700, 1000][offer.masts] || 700;
     el.pirateText.innerHTML =
       `<span>Was tut Ihr mit dem besiegten Schiff?</span>` +
       `<div class="pirate-stats">` +
@@ -579,7 +586,7 @@ const UI = (() => {
         `</div>` +
         `<div class="pirate-stat-row">` +
           `<span class="pirate-stat-label">⚓ Kapern</span>` +
-          `<span class="pirate-stat-value">${offer.boardingGold} G Beute + "${rawName}" in die Flotte</span>` +
+          `<span class="pirate-stat-value">${offer.boardingGold} G Beute · „${rawName}" in Flotte (Buchwert ${bookValue} G)</span>` +
         `</div>` +
         `<div class="pirate-stat-row">` +
           `<span class="pirate-stat-label">💰 Versenken</span>` +
@@ -633,6 +640,7 @@ const UI = (() => {
     cannonPurchases: "Kanonenkäufe",
     pirateLosses: "Piratenverluste",
     pirateLoot: "Piratenbeute",
+    shipCaptures: "Erträge aus Schiffszugängen (Prisen)",
     cargoLossesPirates: "davon: Warenverluste durch Piraten",
     loanInterest: "Kreditzinsen",
     assetDisposalLosses: "Verluste aus Anlagenabgängen",
@@ -641,7 +649,7 @@ const UI = (() => {
     productionCosts: "Produktionskosten (Anbau & Gewinnung)",
     landPurchases: "Grundstückskäufe",
   };
-  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "cargoInsurancePayouts", "debtForgiveness", "pirateLoot"];
+  const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "cargoInsurancePayouts", "debtForgiveness", "pirateLoot", "shipCaptures"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums", "cargoInsurancePremiums",
     "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses", "productionCosts", "landPurchases",
