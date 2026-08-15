@@ -145,10 +145,28 @@ const UI = (() => {
     const city = getCity(ship.currentCityId);
     el.marketCityName.textContent = city.name;
     el.marketHint.textContent = `Frachtraum frei: ${Fleet.cargoFree(ship)} / ${ship.cargoCapacity}`;
+
+    // Aktive Ernte-Ereignisse als Hinweiszeile oberhalb der Tabelle anzeigen
+    const activeEvts = Market.activeHarvestEvents();
+    let evtBanner = el.marketTbody.previousElementSibling;
+    if (evtBanner && evtBanner.classList.contains("harvest-banner")) evtBanner.remove();
+    if (activeEvts.length > 0) {
+      const banner = document.createElement("div");
+      banner.className = "harvest-banner";
+      banner.innerHTML = activeEvts.map((e) => {
+        const def = HARVEST_FAIL_EVENTS.find((d) => d.goodId === e.goodId);
+        const good = getGood(e.goodId);
+        const icon = def ? def.startMsg(0).charAt(0) : "⚠";
+        return `<span class="harvest-badge">${icon} <b>${good.name}</b>: Preise erhöht (×${e.multiplier.toFixed(1)}, noch ${e.endDay - Game.currentDay()} Tage)</span>`;
+      }).join(" &nbsp;·&nbsp; ");
+      el.marketTbody.parentElement.insertBefore(banner, el.marketTbody);
+    }
+
     el.marketTbody.innerHTML = "";
     GOODS.forEach((good) => {
       const entry = Market.getEntry(city.id, good.id);
       const cargoQty = Fleet.cargoQty(ship, good.id);
+      const activeEvt = activeEvts.find((e) => e.goodId === good.id);
 
       const buyPrice = Market.buyPrice(city.id, good.id);
       const maxAffordable = Math.floor(Fleet.gold() / buyPrice);
@@ -161,9 +179,15 @@ const UI = (() => {
         sellCell += `<br><span class="cost-note">Ø gekauft ${boughtAt.toFixed(1)} G</span>`;
       }
 
+      // Warenname mit Ereignis-Badge falls Ernteausfall aktiv
+      const nameCell = activeEvt
+        ? `${good.name} <span class="harvest-event-badge">⚠ Ausfall</span>`
+        : good.name;
+
       const tr = document.createElement("tr");
+      if (activeEvt) tr.classList.add("harvest-event-row");
       tr.innerHTML = `
-        <td>${good.name}</td>
+        <td>${nameCell}</td>
         <td>${Market.availableStock(city.id, good.id)}</td>
         <td>${buyPrice.toFixed(1)} G</td>
         <td>

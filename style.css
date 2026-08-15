@@ -305,6 +305,34 @@ button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
   color: #c9d8e8;
 }
 
+/* Markt: Ernte- und Naturereignisse */
+.harvest-banner {
+  background: rgba(180, 80, 0, 0.18);
+  border: 1px solid #c97000;
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #f0b860;
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+.harvest-badge {
+  display: inline-block;
+  white-space: nowrap;
+}
+.harvest-event-row td:first-child { color: #f0b860; }
+.harvest-event-badge {
+  display: inline-block;
+  font-size: 10px;
+  background: rgba(180, 80, 0, 0.35);
+  border: 1px solid #c97000;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #f0b860;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
 .modal, #travel-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);

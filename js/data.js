@@ -103,6 +103,46 @@ const KONTOR_UPKEEP_PER_LEVEL = 2; // Gulden/Tag je Kontor-Stufe
 const CARGO_EXPANSION_MAX_LEVEL = 10;
 const CARGO_EXPANSION_STEP = 0.1;
 
+// Ernte- und Naturereignisse: Waren, die von Missernten oder schlechten Jahreszeiten
+// betroffen sein koennen. Das System wuerfelt alle HARVEST_FAIL_CHECK_INTERVAL Tage
+// fuer jede Ware. Bei Treffer wird ein globaler Preismultiplikator aktiv, der den
+// Basiszielpreis aller Staedte anhebt — bis das Ereignis nach "duration" Tagen ablaeuft.
+// Wein hat kein Produktionsrezept im Hansegebiet; historisch kamen Weinmangel-Schocks
+// durch schlechte Ernten in Burgund und am Rhein, die den gesamten Nordhandel trafen.
+const HARVEST_FAIL_CHECK_INTERVAL = 30; // alle 30 Tage Wuerfeln
+const HARVEST_FAIL_EVENTS = [
+  {
+    goodId: "wein",
+    chance: 0.07,                      // ~7 % je Pruefung ≈ einmal in ca. 15 Monaten
+    durationMin: 45, durationMax: 90,
+    multiplierMin: 1.5, multiplierMax: 2.5,
+    startMsg: (days) =>
+      `🍇 Ernteausfall! Die Weinlese in Burgund und am Rhein ist misslungen — Wein wird für etwa ${days} Tage deutlich teurer sein.`,
+    endMsg: () =>
+      `☀ Die Weinmärkte erholen sich — Preise kehren auf das übliche Niveau zurück.`,
+  },
+  {
+    goodId: "getreide",
+    chance: 0.05,                      // ~5 % je Pruefung ≈ einmal in ca. 20 Monaten
+    durationMin: 60, durationMax: 120,
+    multiplierMin: 1.3, multiplierMax: 2.0,
+    startMsg: (days) =>
+      `🌾 Missernte! Dürre und Unwetter vernichten die Getreideernte in den Anbaugebieten — Getreide wird für etwa ${days} Tage teurer.`,
+    endMsg: () =>
+      `☀ Die Getreideernte erholt sich — die Preise normalisieren sich.`,
+  },
+  {
+    goodId: "fisch",
+    chance: 0.04,                      // ~4 % je Pruefung ≈ einmal in ca. 25 Monaten
+    durationMin: 30, durationMax: 60,
+    multiplierMin: 1.3, multiplierMax: 1.8,
+    startMsg: (days) =>
+      `🐟 Schlechte Fangsaison! Die Fischgründe in Nord- und Ostsee liefern magere Beute — Fisch wird für etwa ${days} Tage teurer.`,
+    endMsg: () =>
+      `☀ Die Fangsaison normalisiert sich — Fischpreise kehren zurück.`,
+  },
+];
+
 function shipStrength(ship) {
   return ship.cannons * 3 + ship.cargoCapacity * 0.1;
 }
@@ -184,8 +224,8 @@ const PRODUCTION_RECIPES = {
     description: "Fischerboote fahren in die nahen Gewässer, die Beute wird gesalzen und für den Transport aufbereitet." },
   salz:      { goldCost: 70,  outputQty: 8,  days: 6,
     description: "Sole wird aus dem Boden gefördert und in Salinen durch Verdampfung zu Siedesalz gewonnen — oder aus Fels gebrochen." },
-  wein:      { goldCost: 120, outputQty: 8,  days: 8,
-    description: "Weinreben werden das Jahr über gepflegt, die Trauben im Herbst geerntet, gekeltert und zu Wein vergoren." },
+  // Wein wird im Hansegebiet nicht produziert — er kommt aus Burgund, dem Rheinland und
+  // Frankreich und wird ausschliesslich gehandelt. Kein Produktionsrezept vorhanden.
   pelze:     { goldCost: 200, outputQty: 6,  days: 5,
     description: "Pelztiere werden in den umliegenden Wäldern gejagt; die Felle werden abgezogen, gegerbt und aufbereitet." },
   wachs:     { goldCost: 100, outputQty: 7,  days: 5,

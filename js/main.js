@@ -241,6 +241,17 @@ const Game = (() => {
     Market.tick();
     day += 1;
 
+    // Ernte- und Naturereignisse pruefen (Ablauf + neue Wuerfe)
+    const harvest = Market.checkHarvestEvents(day);
+    harvest.expired.forEach((evt) => {
+      const def = HARVEST_FAIL_EVENTS.find((d) => d.goodId === evt.goodId);
+      if (def) UI.log(def.endMsg());
+    });
+    harvest.started.forEach((evt) => {
+      const def = HARVEST_FAIL_EVENTS.find((d) => d.goodId === evt.goodId);
+      if (def) UI.log(def.startMsg(evt.duration));
+    });
+
     const sailingShips = Fleet.allShips().filter((s) => s.sailing);
     for (const ship of sailingShips) {
       const result = Fleet.advanceDay(ship);
