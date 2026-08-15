@@ -217,6 +217,21 @@ const UI = (() => {
           });
         }
 
+        // Grundstuecke: Anzeige + Kaufmöglichkeit
+        const plots = Kontor.plotsOf(city.id);
+        const nextPlotCost = landPlotCost(plots);
+        const canBuyLand = plots < LAND_MAX_PLOTS && Fleet.gold() >= nextPlotCost;
+        html += `<div class="kontor-section-head">Grundstücke</div>`;
+        html += `<div class="kontor-city">
+          <span>🌾 Parzellen in ${city.name}: <b>${plots}/${LAND_MAX_PLOTS}</b>` +
+          (plots > 0 ? ` — ${plots} Produktionsslot${plots !== 1 ? "s" : ""}` : " — keine Produktion möglich") +
+          `</span>
+          <button data-action="buyLand" data-city="${city.id}"
+            ${plots >= LAND_MAX_PLOTS ? "disabled" : !Fleet.gold() >= nextPlotCost ? "disabled" : canBuyLand ? "" : "disabled"}>
+            ${plots >= LAND_MAX_PLOTS ? "Max. Grundbesitz" : `Land kaufen (${nextPlotCost} G)`}
+          </button>
+        </div>`;
+
         // Laufende Produktionen anzeigen
         const productions = Kontor.productionsOf(city.id);
         if (productions.length > 0) {
@@ -234,23 +249,29 @@ const UI = (() => {
         const productionOptions = city.exports.filter((goodId) => PRODUCTION_RECIPES[goodId]);
         if (productionOptions.length > 0) {
           const usedSlots = productions.length;
-          const maxSlots = lvl;
-          html += `<div class="kontor-section-head">Produktion starten (${usedSlots}/${maxSlots} Slots belegt)</div>`;
+          const maxSlots = plots; // Slots = Parzellen, nicht Kontor-Stufe
+          html += `<div class="kontor-section-head">Produktion starten` +
+            (plots === 0 ? " — kein Grundstück vorhanden" : ` (${usedSlots}/${maxSlots} Slots belegt)`) +
+            `</div>`;
           productionOptions.forEach((goodId) => {
             const recipe = PRODUCTION_RECIPES[goodId];
+            const hasPlots = plots > 0;
             const slotsLeft = usedSlots < maxSlots;
             const hasGold = Fleet.gold() >= recipe.goldCost;
             const reservedQty = productions.reduce((sum, p) => sum + p.outputQty, 0);
             const hasSpace = Kontor.storageUsed(city.id) + reservedQty + recipe.outputQty <= Kontor.capacity(city.id);
-            const canStart = slotsLeft && hasGold && hasSpace;
+            const canStart = hasPlots && slotsLeft && hasGold && hasSpace;
+            const disabledTitle = !hasPlots ? "Zuerst Land kaufen" :
+              !slotsLeft ? "Kein freier Produktionsslot" :
+              !hasGold ? "Nicht genug Gold" :
+              !hasSpace ? "Lager zu voll" : "";
             html += `<div class="kontor-city production-option">
               <span>
                 <b>${getGood(goodId).name}</b> — ${recipe.days} Tage · ${recipe.goldCost} G → ${recipe.outputQty} Stück<br>
                 <small class="production-desc">${recipe.description}</small>
               </span>
               <button data-action="produce" data-city="${city.id}" data-good="${goodId}"
-                ${canStart ? "" : "disabled"}
-                title="${!slotsLeft ? "Kein freier Produktionsslot" : !hasGold ? "Nicht genug Gold" : !hasSpace ? "Lager zu voll" : ""}">
+                ${canStart ? "" : "disabled"} title="${disabledTitle}">
                 Starten
               </button>
             </div>`;
@@ -261,11 +282,17 @@ const UI = (() => {
       // Laufende Produktionen auch bei nicht angedockten Städten zeigen (Info)
       if (!isDocked && lvl > 0) {
         const productions = Kontor.productionsOf(city.id);
+        const plots = Kontor.plotsOf(city.id);
+        if (plots > 0 && productions.length === 0) {
+          html += `<div class="kontor-city">
+            <span>🌾 ${plots} Parzelle${plots !== 1 ? "n" : ""} — keine laufende Produktion</span>
+          </div>`;
+        }
         if (productions.length > 0) {
           productions.forEach((p) => {
             const remaining = Math.max(0, p.endDay - Game.currentDay());
             html += `<div class="kontor-city">
-              <span>⚙️ ${city.name}: <b>${getGood(p.goodId).name}</b> — fertig Tag ${p.endDay}` +
+              <span>⚙️ <b>${getGood(p.goodId).name}</b> (${city.name}) — fertig Tag ${p.endDay}` +
               ` (noch ${remaining} Tag${remaining !== 1 ? "e" : ""})</span>
             </div>`;
           });
@@ -282,6 +309,7 @@ const UI = (() => {
         if (action === "store" && callbacks.store) callbacks.store(btn.dataset.city, btn.dataset.good, 10);
         if (action === "withdraw" && callbacks.withdraw) callbacks.withdraw(btn.dataset.city, btn.dataset.good, 10);
         if (action === "produce" && callbacks.startProduction) callbacks.startProduction(btn.dataset.city, btn.dataset.good);
+        if (action === "buyLand" && callbacks.buyLand) callbacks.buyLand(btn.dataset.city);
       });
     });
   }
@@ -518,11 +546,12 @@ const UI = (() => {
     debtForgiveness: "Erträge aus Schuldenerlass",
     cargoExpansionPurchases: "Laderaum-Ausbau",
     productionCosts: "Produktionskosten (Anbau & Gewinnung)",
+    landPurchases: "Grundstückskäufe",
   };
   const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "cargoInsurancePayouts", "debtForgiveness", "pirateLoot"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums", "cargoInsurancePremiums",
-    "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses", "productionCosts",
+    "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses", "productionCosts", "landPurchases",
   ];
 
   function totalLoanPrincipal() {
@@ -719,12 +748,14 @@ const UI = (() => {
 
     const shipsAssetValue = Fleet.allShips().reduce((sum, s) => sum + Fleet.shipValue(s), 0);
     const kontorAssetValue = CITIES.reduce((sum, c) => sum + Kontor.assetValue(c.id), 0);
+    const landAssets = CITIES.reduce((sum, c) => sum + Kontor.landValueOf(c.id), 0);
     const cannonValue = cannonAssetValue();
     const cargoExpansionValue = cargoExpansionAssetValue();
-    const fixedAssets = shipsAssetValue + kontorAssetValue + cannonValue + cargoExpansionValue;
+    const fixedAssets = shipsAssetValue + kontorAssetValue + landAssets + cannonValue + cargoExpansionValue;
     html += "<h3>Anlagevermögen</h3>";
     html += `<div class="tooltip-row"><span>Schiffe (${Fleet.allShips().length}x)</span><span>${Math.round(shipsAssetValue)} G</span></div>`;
     html += `<div class="tooltip-row"><span>Kontore</span><span>${Math.round(kontorAssetValue)} G</span></div>`;
+    html += `<div class="tooltip-row"><span>Grundstücke</span><span>${Math.round(landAssets)} G</span></div>`;
     html += `<div class="tooltip-row"><span>Kanonen (alle Schiffe)</span><span>${Math.round(cannonValue)} G</span></div>`;
     html += `<div class="tooltip-row"><span>Laderaum-Ausbau (alle Schiffe)</span><span>${Math.round(cargoExpansionValue)} G</span></div>`;
     html += `<div class="tooltip-row"><span><b>Summe Anlagevermögen</b></span><span><b>${Math.round(fixedAssets)} G</b></span></div>`;

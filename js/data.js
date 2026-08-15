@@ -84,6 +84,25 @@ function shipStrength(ship) {
   return ship.cannons * 3 + ship.cargoCapacity * 0.1;
 }
 
+// Grundstueckskauf als Voraussetzung fuer Produktionsstaetten.
+// Jede Parzelle kostet LAND_BASE_COST + LAND_COST_STEP * vorhandeneParzellen
+// (staedtischer Boden wird knapper). Je Parzelle ein Produktionsslot.
+const LAND_BASE_COST = 300;   // erste Parzelle
+const LAND_COST_STEP = 200;   // Aufschlag je weiterer Parzelle
+const LAND_MAX_PLOTS = 5;     // maximale Parzellen pro Stadt
+
+// Kaufpreis fuer die naechste Parzelle in einer Stadt.
+function landPlotCost(currentPlots) {
+  return LAND_BASE_COST + LAND_COST_STEP * currentPlots;
+}
+
+// Buchwert des gesamten Grundbesitzes einer Stadt (Summe der gezahlten Kaufpreise).
+function landAssetValue(plots) {
+  let total = 0;
+  for (let i = 0; i < plots; i++) total += landPlotCost(i);
+  return total;
+}
+
 // Beleihung von Kontoren und Schiffen
 const LOAN_MAX_LTV = 0.8; // maximaler Beleihungsgrad (Kredit / Vermögenswert)
 const LOAN_BASE_RATE = 0.05; // Jahreszins bei sehr niedrigem Beleihungsgrad

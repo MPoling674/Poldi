@@ -630,6 +630,21 @@ const Game = (() => {
     saveGame();
   }
 
+  function handleBuyLand(cityId) {
+    const res = Kontor.buyLand(cityId);
+    if (res.ok) {
+      Ledger.record("landPurchases", res.cost);
+      UI.log(
+        `Grundstück in ${getCity(cityId).name} erworben (${res.cost} G) — ` +
+        `${res.newPlots} Parzelle${res.newPlots !== 1 ? "n" : ""}, ${res.newPlots} Produktionsslot${res.newPlots !== 1 ? "s" : ""}.`
+      );
+    } else {
+      UI.log(res.reason);
+    }
+    UI.renderAll();
+    saveGame();
+  }
+
   function handleStartProduction(cityId, goodId) {
     const res = Kontor.startProduction(cityId, goodId, day);
     if (res.ok) {
@@ -712,6 +727,7 @@ const Game = (() => {
     UI.on("borrowShip", handleBorrowShip);
     UI.on("repayShip", handleRepayShip);
     UI.on("payRansom", handlePayRansom);
+    UI.on("buyLand", handleBuyLand);
     UI.on("startProduction", handleStartProduction);
     UI.on("pirateChoice", handlePirateChoice);
     UI.on("saveNow", handleSaveNow);

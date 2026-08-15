@@ -115,10 +115,34 @@ const Kontor = (() => {
     return (kontors[cityId] && kontors[cityId].storageCost) || {};
   }
 
+  // Kauft eine weitere Grundstuecksparzelle in einer Stadt — Voraussetzung fuer
+  // den Betrieb von Produktionsstaetten (je Parzelle ein Produktionsslot).
+  // Ein Kontor muss bereits vorhanden sein; Grundstuecke koennen nur im Hafen
+  // der jeweiligen Stadt erworben werden.
+  function buyLand(cityId) {
+    const kontor = kontors[cityId];
+    if (!kontor || kontor.level === 0) return { ok: false, reason: "Kein Kontor in dieser Stadt — erst ein Kontor bauen." };
+    const plots = kontor.plots || 0;
+    if (plots >= LAND_MAX_PLOTS) return { ok: false, reason: `Maximaler Grundbesitz erreicht (${LAND_MAX_PLOTS} Parzellen).` };
+    const cost = landPlotCost(plots);
+    if (Fleet.gold() < cost) return { ok: false, reason: `Nicht genug Gold (benötigt: ${cost} G).` };
+    Fleet.addGold(-cost);
+    kontor.plots = plots + 1;
+    kontor.landValue = (kontor.landValue || 0) + cost;
+    return { ok: true, cost, newPlots: kontor.plots };
+  }
+
+  function plotsOf(cityId) {
+    return (kontors[cityId] && kontors[cityId].plots) || 0;
+  }
+
+  function landValueOf(cityId) {
+    return (kontors[cityId] && kontors[cityId].landValue) || 0;
+  }
+
   // Startet einen Produktionslauf fuer eine Ware, die die Stadt exportiert.
-  // Kosten werden sofort abgebucht; Ware erscheint nach recipe.days Tagen im
-  // Kontor-Lager. Gleichzeitige Produktionen sind auf Kontor-Stufe begrenzt,
-  // um den Ausbau des Kontors spielmechanisch zu belohnen.
+  // Voraussetzungen: Kontor + mindestens eine Grundstuecksparzelle.
+  // Je Parzelle ein gleichzeitiger Auftrag (statt bisher: je Kontor-Stufe).
   function startProduction(cityId, goodId, currentDay) {
     const city = getCity(cityId);
     if (!city) return { ok: false, reason: "Stadt nicht gefunden." };
@@ -127,17 +151,21 @@ const Kontor = (() => {
     }
     const kontor = kontors[cityId];
     if (!kontor || kontor.level === 0) return { ok: false, reason: "Kein Kontor in dieser Stadt." };
+    const plots = kontor.plots || 0;
+    if (plots === 0) {
+      return { ok: false, reason: "Kein Grundstück vorhanden — erst Land kaufen, um Produktionsstätten betreiben zu können." };
+    }
     const recipe = PRODUCTION_RECIPES[goodId];
     if (!recipe) return { ok: false, reason: "Kein Produktionsrezept vorhanden." };
     if (Fleet.gold() < recipe.goldCost) {
       return { ok: false, reason: `Nicht genug Gold (benötigt: ${recipe.goldCost} G).` };
     }
     if (!kontor.productions) kontor.productions = [];
-    // Pro Kontor-Stufe darf ein Produktionsauftrag gleichzeitig laufen
-    if (kontor.productions.length >= kontor.level) {
+    // Pro Parzelle ein gleichzeitiger Produktionsauftrag
+    if (kontor.productions.length >= plots) {
       return {
         ok: false,
-        reason: `Alle Produktionsslots belegt (${kontor.level} je Stufe). Warte auf Fertigstellung oder baue das Kontor aus.`,
+        reason: `Alle Produktionsslots belegt (${plots} Parzelle${plots !== 1 ? "n" : ""}). Warte auf Fertigstellung oder kaufe weiteres Land.`,
       };
     }
     // Reservierte Lagerfläche der laufenden Aufträge miteinbeziehen
@@ -207,8 +235,10 @@ const Kontor = (() => {
     Object.values(kontors).forEach((kontor) => {
       if (!kontor.storageCost) kontor.storageCost = {};
       if (kontor.loan === undefined) kontor.loan = null;
-      // Migration: Bestandsspeicherstände ohne Produktions-Array nachrüsten
       if (!kontor.productions) kontor.productions = [];
+      // Migration: Bestandsspeicherstände ohne Grundstuecksdaten nachrüsten
+      if (kontor.plots === undefined) kontor.plots = 0;
+      if (kontor.landValue === undefined) kontor.landValue = 0;
     });
   }
 
@@ -223,6 +253,9 @@ const Kontor = (() => {
     withdrawGood,
     storageOf,
     storageCostOf,
+    buyLand,
+    plotsOf,
+    landValueOf,
     startProduction,
     checkProductions,
     productionsOf,
