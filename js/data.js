@@ -115,3 +115,23 @@ function cityDistance(cityIdA, cityIdB) {
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
 }
+
+// Produktionsrezepte: welche Waren koennen in Kontor-Staedten erzeugt werden?
+// Produktion ist nur in Staedten moeglich, die die jeweilige Ware exportieren.
+// goldCost: einmalige Produktionskosten (Saatgut, Lohnkosten, Werkzeug u.a.),
+// outputQty: erzeugte Einheiten je Lauf, days: Produktionsdauer in Tagen,
+// description: Beschreibung des historischen Gewinnungsprozesses.
+const PRODUCTION_RECIPES = {
+  getreide:  { goldCost: 40,  outputQty: 20, days: 4,  description: "Felder werden bestellt, Getreide gesät, gepflegt und nach der Reifezeit gedroschen." },
+  holz:      { goldCost: 35,  outputQty: 20, days: 3,  description: "Waldstücke werden eingeschlagen; das Holz wird aufgesägt, gebündelt und ans Kontor geliefert." },
+  fisch:     { goldCost: 30,  outputQty: 18, days: 3,  description: "Fischerboote fahren in die nahen Gewässer, die Beute wird gesalzen und für den Transport aufbereitet." },
+  bier:      { goldCost: 60,  outputQty: 15, days: 5,  description: "Gerste und Hopfen werden angebaut; im Sudhaus wird Malz gemaischt, Hopfen zugegeben und das Bier vergoren." },
+  salz:      { goldCost: 70,  outputQty: 8,  days: 6,  description: "Sole wird aus dem Boden gefördert und in Salinen durch Verdampfung zu Siedesalz gewonnen — oder aus Fels gebrochen." },
+  tuch:      { goldCost: 180, outputQty: 8,  days: 7,  description: "Wolle wird von Schafen geschoren, gereinigt, gekämmt, gesponnen, gewebt, gewalkt und zu Tuch gefärbt." },
+  wein:      { goldCost: 120, outputQty: 8,  days: 8,  description: "Weinreben werden das Jahr über gepflegt, die Trauben im Herbst geerntet, gekeltert und zu Wein vergoren." },
+  pelze:     { goldCost: 200, outputQty: 6,  days: 5,  description: "Pelztiere werden in den umliegenden Wäldern gejagt; die Felle werden abgezogen, gegerbt und aufbereitet." },
+  wachs:     { goldCost: 100, outputQty: 7,  days: 5,  description: "Bienenstöcke werden aufgebaut und regelmäßig geerntet; das Rohwachs wird gereinigt, geläutert und geformt." },
+  honig:     { goldCost: 50,  outputQty: 12, days: 4,  description: "Bienenstöcke liefern Honig, der vorsichtig geerntet, von Wachs und Verunreinigungen getrennt und abgefüllt wird." },
+  eisen:     { goldCost: 150, outputQty: 8,  days: 7,  description: "Eisenerz wird aus dem Boden abgebaut, geröstet, im Hochofen mit Holzkohle verhüttet und zu Roheisen verarbeitet." },
+  bernstein: { goldCost: 160, outputQty: 5,  days: 5,  description: "Bernstein wird nach Stürmen an den Stränden gesammelt oder im Küstentagebau gewonnen und sortiert." },
+};

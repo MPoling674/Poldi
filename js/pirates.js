@@ -1,6 +1,34 @@
 // Piraten-Zufallsereignisse während der Fahrt: Kampf, Flucht, Totalverlust & Lösegeld
 
 const Pirates = (() => {
+  // Aktuell laufende Begegnung (Statistiken des Piraten-Schiffs). Wird bei
+  // generateEncounter() gesetzt und nach Aufloesung (resolveFight / resolveFlee)
+  // geloescht, damit kein alter Stand in eine neue Begegnung einfliesst.
+  let _currentEncounter = null;
+
+  const PIRATE_SHIP_NAMES = [
+    "die Schwarze Möwe", "die Rote Flut", "der Meereswolf",
+    "die Todesgaleere", "der Nordwind", "die Stürmerbraut",
+    "die Eiserne Faust", "der Blutfriese", "das Nebeltier",
+    "der Rächer der Nordsee",
+  ];
+
+  // Erzeugt einen zufälligen Piratengegner und speichert ihn für resolveFight/
+  // resolveFlee. Masten (1–3) bestimmen die Schiffsgrösse; Kanonen (0–2×Masten)
+  // sind der entscheidende Kampfwert. Staerke = f(Kanonen, Masten, Zufall).
+  function generateEncounter() {
+    const masts = 1 + Math.floor(Math.random() * 3);
+    const cannons = Math.floor(Math.random() * (masts * 2 + 1));
+    const strength = cannons * 1.5 + masts * 0.5 + 0.5 + Math.random() * 1.5;
+    const name = PIRATE_SHIP_NAMES[Math.floor(Math.random() * PIRATE_SHIP_NAMES.length)];
+    _currentEncounter = { masts, cannons, strength, name };
+    return _currentEncounter;
+  }
+
+  function currentEncounter() {
+    return _currentEncounter;
+  }
+
   function rollEncounter(ship) {
     if (!ship.sailing) return false;
     return Math.random() < (ship.routeRiskPerDay || 0);
@@ -37,7 +65,11 @@ const Pirates = (() => {
   }
 
   function resolveFight(ship, currentDay) {
-    const pirateStrength = 2 + Math.random() * 4;
+    // Vorher generierte Begegnung (mit sichtbaren Schiffsdaten) verwenden, falls vorhanden;
+    // Fallback fuer den Fall, dass resolveFight ohne vorherigen generateEncounter-Aufruf
+    // aufgerufen wird (z.B. bei alten Tests oder NPC-Schiffen, die kaempfen).
+    const pirateStrength = _currentEncounter ? _currentEncounter.strength : (2 + Math.random() * 4);
+    _currentEncounter = null;
     const winChance = ship.cannons / (ship.cannons + pirateStrength);
     if (Math.random() < winChance) {
       const loot = Math.round(50 + Math.random() * 100);
@@ -106,6 +138,7 @@ const Pirates = (() => {
   }
 
   function resolveFlee(ship, currentDay) {
+    _currentEncounter = null; // Begegnung nach Entscheidung loeschen
     const fleeChance = Math.max(0.3, Math.min(0.9, 0.5 + ship.speedBonus * 0.1));
     if (Math.random() < fleeChance) {
       return { fled: true, destroyed: false, message: "Die Flucht gelang, die Piraten bleiben zurück." };
@@ -162,5 +195,5 @@ const Pirates = (() => {
     return { fled: false, destroyed: false, message: `Die Flucht misslang! ${cargoMsg}` };
   }
 
-  return { rollEncounter, resolveFight, resolveFlee };
+  return { rollEncounter, generateEncounter, currentEncounter, resolveFight, resolveFlee };
 })();

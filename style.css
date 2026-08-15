@@ -246,6 +246,52 @@ button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
 
 #kontor-info .kontor-city, #kredite-kontore .kontor-city, #kredite-schiffe .kontor-city { padding: 8px 0; border-bottom: 1px solid #26425f; display: flex; justify-content: space-between; align-items: center; }
 
+/* Piraten-Modal: Schiffsstatistiken beider Seiten */
+.pirate-stats {
+  margin-top: 14px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid #3a5a40;
+  border-radius: 6px;
+  padding: 10px 14px;
+  text-align: left;
+}
+.pirate-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.pirate-stat-row + .pirate-stat-row {
+  border-top: 1px solid #26425f;
+}
+.pirate-stat-label { color: #9fb4c7; }
+.pirate-stat-value { font-weight: bold; color: #f2c14e; }
+
+/* Kontor-Produktion */
+.kontor-section-head {
+  padding: 8px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #9fb4c7;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #3a5a40;
+  margin-top: 4px;
+}
+.production-option {
+  align-items: flex-start !important;
+  gap: 10px;
+}
+.production-option span { flex: 1; line-height: 1.5; }
+.production-option button { margin-top: 2px; flex-shrink: 0; }
+.production-desc {
+  display: block;
+  font-size: 11px;
+  color: #9fb4c7;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
 .modal, #travel-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);

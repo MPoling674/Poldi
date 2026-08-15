@@ -216,6 +216,60 @@ const UI = (() => {
             </div>`;
           });
         }
+
+        // Laufende Produktionen anzeigen
+        const productions = Kontor.productionsOf(city.id);
+        if (productions.length > 0) {
+          html += `<div class="kontor-section-head">Laufende Produktionen</div>`;
+          productions.forEach((p) => {
+            const remaining = Math.max(0, p.endDay - Game.currentDay());
+            html += `<div class="kontor-city">
+              <span>⚙️ <b>${getGood(p.goodId).name}</b> — fertig Tag ${p.endDay}` +
+              ` (noch ${remaining} Tag${remaining !== 1 ? "e" : ""}), ergibt ${p.outputQty} Stück</span>
+            </div>`;
+          });
+        }
+
+        // Produktionsmöglichkeiten für Exportwaren dieser Stadt
+        const productionOptions = city.exports.filter((goodId) => PRODUCTION_RECIPES[goodId]);
+        if (productionOptions.length > 0) {
+          const usedSlots = productions.length;
+          const maxSlots = lvl;
+          html += `<div class="kontor-section-head">Produktion starten (${usedSlots}/${maxSlots} Slots belegt)</div>`;
+          productionOptions.forEach((goodId) => {
+            const recipe = PRODUCTION_RECIPES[goodId];
+            const slotsLeft = usedSlots < maxSlots;
+            const hasGold = Fleet.gold() >= recipe.goldCost;
+            const reservedQty = productions.reduce((sum, p) => sum + p.outputQty, 0);
+            const hasSpace = Kontor.storageUsed(city.id) + reservedQty + recipe.outputQty <= Kontor.capacity(city.id);
+            const canStart = slotsLeft && hasGold && hasSpace;
+            html += `<div class="kontor-city production-option">
+              <span>
+                <b>${getGood(goodId).name}</b> — ${recipe.days} Tage · ${recipe.goldCost} G → ${recipe.outputQty} Stück<br>
+                <small class="production-desc">${recipe.description}</small>
+              </span>
+              <button data-action="produce" data-city="${city.id}" data-good="${goodId}"
+                ${canStart ? "" : "disabled"}
+                title="${!slotsLeft ? "Kein freier Produktionsslot" : !hasGold ? "Nicht genug Gold" : !hasSpace ? "Lager zu voll" : ""}">
+                Starten
+              </button>
+            </div>`;
+          });
+        }
+      }
+
+      // Laufende Produktionen auch bei nicht angedockten Städten zeigen (Info)
+      if (!isDocked && lvl > 0) {
+        const productions = Kontor.productionsOf(city.id);
+        if (productions.length > 0) {
+          productions.forEach((p) => {
+            const remaining = Math.max(0, p.endDay - Game.currentDay());
+            html += `<div class="kontor-city">
+              <span>⚙️ ${city.name}: <b>${getGood(p.goodId).name}</b> — fertig Tag ${p.endDay}` +
+              ` (noch ${remaining} Tag${remaining !== 1 ? "e" : ""})</span>
+            </div>`;
+          });
+        }
       }
     });
 
@@ -227,6 +281,7 @@ const UI = (() => {
         if (action === "build" && callbacks.buildKontor) callbacks.buildKontor(btn.dataset.city);
         if (action === "store" && callbacks.store) callbacks.store(btn.dataset.city, btn.dataset.good, 10);
         if (action === "withdraw" && callbacks.withdraw) callbacks.withdraw(btn.dataset.city, btn.dataset.good, 10);
+        if (action === "produce" && callbacks.startProduction) callbacks.startProduction(btn.dataset.city, btn.dataset.good);
       });
     });
   }
@@ -394,8 +449,29 @@ const UI = (() => {
     }, 2000);
   }
 
-  function showPirateModal(text) {
-    el.pirateText.textContent = text;
+  // Zeigt das Piraten-Modal mit dem Begegnungstext. Wird pirateEncounter mitgegeben,
+  // wird zusätzlich eine Statistik-Box mit Mast-/Kanonenzahl beider Seiten angezeigt,
+  // damit der Spieler eine informierte Kampf-/Fluchtentscheidung treffen kann.
+  function showPirateModal(text, pirateEncounter) {
+    if (pirateEncounter) {
+      const mastsStr = `${pirateEncounter.masts} Mast${pirateEncounter.masts !== 1 ? "en" : ""}`;
+      const pirateCannonsStr = `${pirateEncounter.cannons} Kanone${pirateEncounter.cannons !== 1 ? "n" : ""}`;
+      const shipCannonsStr = `${pirateEncounter.shipCannons} Kanone${pirateEncounter.shipCannons !== 1 ? "n" : ""}`;
+      el.pirateText.innerHTML =
+        `<span>${text}</span>` +
+        `<div class="pirate-stats">` +
+        `<div class="pirate-stat-row">` +
+        `<span class="pirate-stat-label">🏴‍☠️ ${pirateEncounter.name}</span>` +
+        `<span class="pirate-stat-value">${mastsStr} · ${pirateCannonsStr}</span>` +
+        `</div>` +
+        `<div class="pirate-stat-row">` +
+        `<span class="pirate-stat-label">⚓ Euer Schiff</span>` +
+        `<span class="pirate-stat-value">${shipCannonsStr}</span>` +
+        `</div>` +
+        `</div>`;
+    } else {
+      el.pirateText.textContent = text;
+    }
     el.pirateModal.classList.remove("hidden");
   }
 
@@ -441,11 +517,12 @@ const UI = (() => {
     assetDisposalLosses: "Verluste aus Anlagenabgängen",
     debtForgiveness: "Erträge aus Schuldenerlass",
     cargoExpansionPurchases: "Laderaum-Ausbau",
+    productionCosts: "Produktionskosten (Anbau & Gewinnung)",
   };
   const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "cargoInsurancePayouts", "debtForgiveness", "pirateLoot"];
   const LEDGER_EXPENSE_CATEGORIES = [
     "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums", "cargoInsurancePremiums",
-    "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses",
+    "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses", "productionCosts",
   ];
 
   function totalLoanPrincipal() {

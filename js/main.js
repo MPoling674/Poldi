@@ -259,12 +259,19 @@ const Game = (() => {
 
       if (Pirates.rollEncounter(ship)) {
         if (ship.isPlayer) {
-          UI.showPirateModal("Ein fremdes Segel nähert sich schnell! Was tut Ihr?");
+          // Piraten-Schiff vor der Entscheidung generieren, damit der Spieler
+          // Masten und Kanonen sieht und eine fundierte Wahl treffen kann.
+          const encounter = Pirates.generateEncounter();
+          UI.showPirateModal(
+            "Ein fremdes Segel nähert sich schnell — was tut Ihr?",
+            { name: encounter.name, masts: encounter.masts, cannons: encounter.cannons, shipCannons: ship.cannons }
+          );
           pendingPirateResolve = () => {
             scheduleTick();
           };
           return;
         }
+        // NPC-Schiffe fliehen automatisch; Begegnung wird in resolveFlee geloescht.
         const result = Pirates.resolveFlee(ship, day);
         UI.log(`${ship.name}: ${result.message}`);
       }
@@ -317,6 +324,17 @@ const Game = (() => {
 
     Fleet.expireRansoms(day).forEach((ransom) => {
       UI.log(`Die Lösegeldfrist für ${ransom.shipName} ist abgelaufen — die Crew ist verloren.`);
+    });
+
+    // Abgeschlossene Produktionslaeufe in allen Kontoren verbuchen
+    CITIES.forEach((city) => {
+      if (Kontor.level(city.id) === 0) return;
+      const completed = Kontor.checkProductions(city.id, day);
+      completed.forEach((job) => {
+        UI.log(
+          `${getCity(city.id).name}: ${job.outputQty}× ${getGood(job.goodId).name} produziert und ins Kontor-Lager eingelagert.`
+        );
+      });
     });
 
     CITIES.forEach((city) => {
@@ -612,6 +630,21 @@ const Game = (() => {
     saveGame();
   }
 
+  function handleStartProduction(cityId, goodId) {
+    const res = Kontor.startProduction(cityId, goodId, day);
+    if (res.ok) {
+      Ledger.record("productionCosts", res.recipe.goldCost);
+      UI.log(
+        `Produktion gestartet: ${getGood(goodId).name} in ${getCity(cityId).name}` +
+        ` (${res.recipe.goldCost} G · ${res.recipe.days} Tage · fertig Tag ${res.endDay}).`
+      );
+    } else {
+      UI.log(res.reason);
+    }
+    UI.renderAll();
+    saveGame();
+  }
+
   function handlePayRansom(ransomId) {
     const res = Fleet.payRansom(ransomId);
     if (res.ok) Ledger.record("ransoms", res.ransom.amount);
@@ -679,6 +712,7 @@ const Game = (() => {
     UI.on("borrowShip", handleBorrowShip);
     UI.on("repayShip", handleRepayShip);
     UI.on("payRansom", handlePayRansom);
+    UI.on("startProduction", handleStartProduction);
     UI.on("pirateChoice", handlePirateChoice);
     UI.on("saveNow", handleSaveNow);
     UI.on("exportSave", handleExportSave);

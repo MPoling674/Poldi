@@ -30,8 +30,9 @@ const Kontor = (() => {
     if (level(cityId) >= 3) return { ok: false, reason: "Kontor bereits auf Höchststufe." };
     if (Fleet.gold() < cost) return { ok: false, reason: "Nicht genug Gold." };
     Fleet.addGold(-cost);
-    if (!kontors[cityId]) kontors[cityId] = { level: 0, storage: {}, storageCost: {}, loan: null };
+    if (!kontors[cityId]) kontors[cityId] = { level: 0, storage: {}, storageCost: {}, loan: null, productions: [] };
     if (!kontors[cityId].storageCost) kontors[cityId].storageCost = {};
+    if (!kontors[cityId].productions) kontors[cityId].productions = [];
     kontors[cityId].level += 1;
     return { ok: true, cost };
   }
@@ -114,6 +115,71 @@ const Kontor = (() => {
     return (kontors[cityId] && kontors[cityId].storageCost) || {};
   }
 
+  // Startet einen Produktionslauf fuer eine Ware, die die Stadt exportiert.
+  // Kosten werden sofort abgebucht; Ware erscheint nach recipe.days Tagen im
+  // Kontor-Lager. Gleichzeitige Produktionen sind auf Kontor-Stufe begrenzt,
+  // um den Ausbau des Kontors spielmechanisch zu belohnen.
+  function startProduction(cityId, goodId, currentDay) {
+    const city = getCity(cityId);
+    if (!city) return { ok: false, reason: "Stadt nicht gefunden." };
+    if (!city.exports.includes(goodId)) {
+      return { ok: false, reason: `${getGood(goodId).name} kann in ${city.name} nicht produziert werden — die Stadt exportiert diese Ware nicht.` };
+    }
+    const kontor = kontors[cityId];
+    if (!kontor || kontor.level === 0) return { ok: false, reason: "Kein Kontor in dieser Stadt." };
+    const recipe = PRODUCTION_RECIPES[goodId];
+    if (!recipe) return { ok: false, reason: "Kein Produktionsrezept vorhanden." };
+    if (Fleet.gold() < recipe.goldCost) {
+      return { ok: false, reason: `Nicht genug Gold (benötigt: ${recipe.goldCost} G).` };
+    }
+    if (!kontor.productions) kontor.productions = [];
+    // Pro Kontor-Stufe darf ein Produktionsauftrag gleichzeitig laufen
+    if (kontor.productions.length >= kontor.level) {
+      return {
+        ok: false,
+        reason: `Alle Produktionsslots belegt (${kontor.level} je Stufe). Warte auf Fertigstellung oder baue das Kontor aus.`,
+      };
+    }
+    // Reservierte Lagerfläche der laufenden Aufträge miteinbeziehen
+    const reservedQty = kontor.productions.reduce((sum, p) => sum + p.outputQty, 0);
+    if (storageUsed(cityId) + reservedQty + recipe.outputQty > capacity(cityId)) {
+      return { ok: false, reason: "Lagerkapazität reicht für die zu erzeugende Ware nicht aus." };
+    }
+    Fleet.addGold(-recipe.goldCost);
+    kontor.productions.push({
+      goodId,
+      endDay: currentDay + recipe.days,
+      outputQty: recipe.outputQty,
+      goldCost: recipe.goldCost,
+    });
+    return { ok: true, recipe, endDay: currentDay + recipe.days };
+  }
+
+  // Prueft alle laufenden Produktionen fuer eine Stadt und schliesst abgeschlossene
+  // ab — Ware wird ins Kontor-Lager eingebucht, Stueckkosten werden fortgeschrieben.
+  // Gibt die fertiggestellten Jobs zurueck (fuer Log-Meldungen im Aufrufer).
+  function checkProductions(cityId, currentDay) {
+    const kontor = kontors[cityId];
+    if (!kontor || !kontor.productions || kontor.productions.length === 0) return [];
+    const done = kontor.productions.filter((p) => currentDay >= p.endDay);
+    kontor.productions = kontor.productions.filter((p) => currentDay < p.endDay);
+    if (!kontor.storage) kontor.storage = {};
+    if (!kontor.storageCost) kontor.storageCost = {};
+    done.forEach((p) => {
+      const unitCost = p.goldCost / p.outputQty;
+      const existingQty = kontor.storage[p.goodId] || 0;
+      const existingCost = kontor.storageCost[p.goodId] || 0;
+      // Gewichteter Durchschnitt aus bestehendem Bestand und neuer Produktionscharge
+      kontor.storageCost[p.goodId] = Fleet.mergeCost(existingQty, existingCost, p.outputQty, unitCost);
+      kontor.storage[p.goodId] = existingQty + p.outputQty;
+    });
+    return done;
+  }
+
+  function productionsOf(cityId) {
+    return (kontors[cityId] && kontors[cityId].productions) || [];
+  }
+
   function cannonCost(ship) {
     return ship ? 300 * (ship.cannons - 1) : 0;
   }
@@ -141,6 +207,8 @@ const Kontor = (() => {
     Object.values(kontors).forEach((kontor) => {
       if (!kontor.storageCost) kontor.storageCost = {};
       if (kontor.loan === undefined) kontor.loan = null;
+      // Migration: Bestandsspeicherstände ohne Produktions-Array nachrüsten
+      if (!kontor.productions) kontor.productions = [];
     });
   }
 
@@ -155,6 +223,9 @@ const Kontor = (() => {
     withdrawGood,
     storageOf,
     storageCostOf,
+    startProduction,
+    checkProductions,
+    productionsOf,
     cannonCost,
     buyCannon,
     assetValue,
