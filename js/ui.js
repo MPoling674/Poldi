@@ -183,6 +183,7 @@ const UI = (() => {
     const dockedCityId = ship && !ship.sailing ? ship.currentCityId : null;
     let html = "";
 
+    // Kanonen-Aufrüstung (immer sichtbar, wenn Schiff vorhanden)
     if (ship) {
       html += `<div class="kontor-city"><span>Kanonen an Bord: ${ship.cannons}</span>
         <button data-action="cannon" ${ship.cannons >= 6 ? "disabled" : ""}>
@@ -190,50 +191,63 @@ const UI = (() => {
         </button></div>`;
     }
 
-    CITIES.forEach((city) => {
-      const lvl = Kontor.level(city.id);
-      const isDocked = city.id === dockedCityId;
+    if (dockedCityId) {
+      // ── Im Hafen: volle Detailansicht nur der aktuellen Stadt ──────────
+      const city = getCity(dockedCityId);
+      const lvl = Kontor.level(dockedCityId);
+      const storageUsed = Kontor.storageUsed(dockedCityId);
+      const storageMax = Kontor.capacity(dockedCityId);
+
       html += `<div class="kontor-city">
-        <span>${city.name} — Kontor Stufe ${lvl}/3 (Lager ${Kontor.storageUsed(city.id)}/${Kontor.capacity(city.id)})</span>
-        <button data-action="build" data-city="${city.id}" ${!isDocked || lvl >= 3 ? "disabled" : ""}>
-          ${lvl >= 3 ? "Max." : "Bauen (" + Kontor.buildCost(city.id) + " G)"}
+        <span><b>${city.name}</b> — Kontor Stufe ${lvl}/3` +
+        (lvl > 0 ? ` · Lager ${storageUsed}/${storageMax}` : "") +
+        `</span>
+        <button data-action="build" data-city="${dockedCityId}" ${lvl >= 3 ? "disabled" : ""}>
+          ${lvl >= 3 ? "Kontor (Max.)" : "Kontor bauen (" + Kontor.buildCost(dockedCityId) + " G)"}
         </button>
       </div>`;
-      if (isDocked && lvl > 0) {
-        const storage = Kontor.storageOf(city.id);
-        Object.keys(storage).forEach((goodId) => {
-          if (storage[goodId] <= 0) return;
-          html += `<div class="kontor-city">
-            <span>${getGood(goodId).name} im Lager: ${storage[goodId]}</span>
-            <button data-action="withdraw" data-city="${city.id}" data-good="${goodId}">Ausladen (10)</button>
-          </div>`;
-        });
-        if (Object.keys(ship.cargo).length > 0) {
-          Object.keys(ship.cargo).forEach((goodId) => {
+
+      if (lvl > 0) {
+        // Lager: Waren aus Lager ausladen
+        const storage = Kontor.storageOf(dockedCityId);
+        const storedGoods = Object.keys(storage).filter((id) => storage[id] > 0);
+        if (storedGoods.length > 0) {
+          html += `<div class="kontor-section-head">Lager</div>`;
+          storedGoods.forEach((goodId) => {
             html += `<div class="kontor-city">
-              <span>${getGood(goodId).name} an Bord: ${ship.cargo[goodId]}</span>
-              <button data-action="store" data-city="${city.id}" data-good="${goodId}">Einlagern (10)</button>
+              <span>${getGood(goodId).name} im Lager: ${storage[goodId]}</span>
+              <button data-action="withdraw" data-city="${dockedCityId}" data-good="${goodId}">Ausladen (10)</button>
             </div>`;
           });
         }
 
-        // Grundstuecke: Anzeige + Kaufmöglichkeit
-        const plots = Kontor.plotsOf(city.id);
+        // Schiffsladung einlagern
+        if (ship && Object.keys(ship.cargo).length > 0) {
+          if (storedGoods.length === 0) html += `<div class="kontor-section-head">Lager</div>`;
+          Object.keys(ship.cargo).forEach((goodId) => {
+            html += `<div class="kontor-city">
+              <span>${getGood(goodId).name} an Bord: ${ship.cargo[goodId]}</span>
+              <button data-action="store" data-city="${dockedCityId}" data-good="${goodId}">Einlagern (10)</button>
+            </div>`;
+          });
+        }
+
+        // Grundstücke
+        const plots = Kontor.plotsOf(dockedCityId);
         const nextPlotCost = landPlotCost(plots);
         const canBuyLand = plots < LAND_MAX_PLOTS && Fleet.gold() >= nextPlotCost;
         html += `<div class="kontor-section-head">Grundstücke</div>`;
         html += `<div class="kontor-city">
-          <span>🌾 Parzellen in ${city.name}: <b>${plots}/${LAND_MAX_PLOTS}</b>` +
-          (plots > 0 ? ` — ${plots} Produktionsslot${plots !== 1 ? "s" : ""}` : " — keine Produktion möglich") +
+          <span>🌾 Parzellen: <b>${plots}/${LAND_MAX_PLOTS}</b>` +
+          (plots > 0 ? ` — ${plots} Produktionsslot${plots !== 1 ? "s" : ""}` : " — <em>Produktion erst nach Kauf möglich</em>") +
           `</span>
-          <button data-action="buyLand" data-city="${city.id}"
-            ${plots >= LAND_MAX_PLOTS ? "disabled" : !Fleet.gold() >= nextPlotCost ? "disabled" : canBuyLand ? "" : "disabled"}>
+          <button data-action="buyLand" data-city="${dockedCityId}" ${canBuyLand ? "" : "disabled"}>
             ${plots >= LAND_MAX_PLOTS ? "Max. Grundbesitz" : `Land kaufen (${nextPlotCost} G)`}
           </button>
         </div>`;
 
-        // Laufende Produktionen anzeigen
-        const productions = Kontor.productionsOf(city.id);
+        // Laufende Produktionen
+        const productions = Kontor.productionsOf(dockedCityId);
         if (productions.length > 0) {
           html += `<div class="kontor-section-head">Laufende Produktionen</div>`;
           productions.forEach((p) => {
@@ -245,60 +259,87 @@ const UI = (() => {
           });
         }
 
-        // Produktionsmöglichkeiten für Exportwaren dieser Stadt
+        // Produktion starten
         const productionOptions = city.exports.filter((goodId) => PRODUCTION_RECIPES[goodId]);
         if (productionOptions.length > 0) {
           const usedSlots = productions.length;
-          const maxSlots = plots; // Slots = Parzellen, nicht Kontor-Stufe
+          const maxSlots = plots;
           html += `<div class="kontor-section-head">Produktion starten` +
-            (plots === 0 ? " — kein Grundstück vorhanden" : ` (${usedSlots}/${maxSlots} Slots belegt)`) +
-            `</div>`;
+            (plots === 0 ? "" : ` — ${usedSlots}/${maxSlots} Slots belegt`) + `</div>`;
           productionOptions.forEach((goodId) => {
             const recipe = PRODUCTION_RECIPES[goodId];
             const hasPlots = plots > 0;
             const slotsLeft = usedSlots < maxSlots;
             const hasGold = Fleet.gold() >= recipe.goldCost;
             const reservedQty = productions.reduce((sum, p) => sum + p.outputQty, 0);
-            const hasSpace = Kontor.storageUsed(city.id) + reservedQty + recipe.outputQty <= Kontor.capacity(city.id);
+            const hasSpace = storageUsed + reservedQty + recipe.outputQty <= storageMax;
             const canStart = hasPlots && slotsLeft && hasGold && hasSpace;
-            const disabledTitle = !hasPlots ? "Zuerst Land kaufen" :
-              !slotsLeft ? "Kein freier Produktionsslot" :
-              !hasGold ? "Nicht genug Gold" :
-              !hasSpace ? "Lager zu voll" : "";
+            // Grund sichtbar im Button-Label, nicht nur als Tooltip
+            const blockReason = !hasPlots ? "⚠ Kein Grundstück" :
+              !slotsLeft ? "⚠ Kein Slot frei" :
+              !hasGold ? "⚠ Kein Gold" :
+              !hasSpace ? "⚠ Lager voll" : "";
             html += `<div class="kontor-city production-option">
               <span>
                 <b>${getGood(goodId).name}</b> — ${recipe.days} Tage · ${recipe.goldCost} G → ${recipe.outputQty} Stück<br>
                 <small class="production-desc">${recipe.description}</small>
               </span>
-              <button data-action="produce" data-city="${city.id}" data-good="${goodId}"
-                ${canStart ? "" : "disabled"} title="${disabledTitle}">
-                Starten
+              <button data-action="produce" data-city="${dockedCityId}" data-good="${goodId}"
+                ${canStart ? "" : "disabled"}>
+                ${canStart ? "Starten" : blockReason}
               </button>
             </div>`;
           });
         }
       }
 
-      // Laufende Produktionen auch bei nicht angedockten Städten zeigen (Info)
-      if (!isDocked && lvl > 0) {
-        const productions = Kontor.productionsOf(city.id);
-        const plots = Kontor.plotsOf(city.id);
-        if (plots > 0 && productions.length === 0) {
+      // Produktionen in anderen Städten (kompakt, nur wenn vorhanden)
+      const otherRunning = [];
+      CITIES.forEach((c) => {
+        if (c.id === dockedCityId) return;
+        Kontor.productionsOf(c.id).forEach((p) => otherRunning.push({ city: c, job: p }));
+      });
+      if (otherRunning.length > 0) {
+        html += `<div class="kontor-section-head">Produktionen in anderen Städten</div>`;
+        otherRunning.forEach(({ city: c, job: p }) => {
+          const remaining = Math.max(0, p.endDay - Game.currentDay());
           html += `<div class="kontor-city">
-            <span>🌾 ${plots} Parzelle${plots !== 1 ? "n" : ""} — keine laufende Produktion</span>
+            <span>⚙️ <b>${getGood(p.goodId).name}</b> (${c.name}) — fertig Tag ${p.endDay}` +
+            ` (noch ${remaining} Tag${remaining !== 1 ? "e" : ""})</span>
           </div>`;
-        }
-        if (productions.length > 0) {
-          productions.forEach((p) => {
-            const remaining = Math.max(0, p.endDay - Game.currentDay());
-            html += `<div class="kontor-city">
-              <span>⚙️ <b>${getGood(p.goodId).name}</b> (${city.name}) — fertig Tag ${p.endDay}` +
-              ` (noch ${remaining} Tag${remaining !== 1 ? "e" : ""})</span>
+        });
+      }
+
+    } else {
+      // ── Auf See: kompakte Übersicht aller Kontore ──────────────────────
+      const kontorCities = CITIES.filter((c) => Kontor.level(c.id) > 0);
+      if (kontorCities.length === 0) {
+        html += `<p class="hint">Noch kein Kontor gebaut — Kontor-Details sind im Hafen verfügbar.</p>`;
+      } else {
+        html += `<p class="hint">Auf See — Kontor-Details und Aktionen sind im Hafen verfügbar.</p>`;
+        kontorCities.forEach((city) => {
+          const lvl = Kontor.level(city.id);
+          const plots = Kontor.plotsOf(city.id);
+          const prods = Kontor.productionsOf(city.id);
+          const storage = Kontor.storageOf(city.id);
+          const storedGoods = Object.keys(storage).filter((id) => storage[id] > 0);
+          html += `<div class="kontor-city">
+            <span><b>${city.name}</b> — Stufe ${lvl}/3 · ${plots} Parzelle${plots !== 1 ? "n" : ""} · Lager ${Kontor.storageUsed(city.id)}/${Kontor.capacity(city.id)}</span>
+          </div>`;
+          storedGoods.forEach((goodId) => {
+            html += `<div class="kontor-city kontor-indent">
+              <span>${getGood(goodId).name}: ${storage[goodId]}</span>
             </div>`;
           });
-        }
+          prods.forEach((p) => {
+            const remaining = Math.max(0, p.endDay - Game.currentDay());
+            html += `<div class="kontor-city kontor-indent">
+              <span>⚙️ ${getGood(p.goodId).name} — fertig Tag ${p.endDay} (noch ${remaining} Tag${remaining !== 1 ? "e" : ""})</span>
+            </div>`;
+          });
+        });
       }
-    });
+    }
 
     el.kontorInfo.innerHTML = html;
     el.kontorInfo.querySelectorAll("button").forEach((btn) => {

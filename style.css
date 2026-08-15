@@ -284,6 +284,12 @@ button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
 }
 .production-option span { flex: 1; line-height: 1.5; }
 .production-option button { margin-top: 2px; flex-shrink: 0; }
+.kontor-indent {
+  padding-left: 1.2em !important;
+  opacity: 0.8;
+  font-size: 12px;
+}
+
 .production-desc {
   display: block;
   font-size: 11px;
