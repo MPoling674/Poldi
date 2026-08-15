@@ -25,13 +25,17 @@ const Market = (() => {
     fillMissingEntries();
   }
 
-  // Gibt den aktuellen Preismultiplikator fuer eine Ware zurueck (1.0 wenn kein Ereignis aktiv).
-  function harvestMultiplier(goodId) {
+  // Gibt den aktuellen Preismultiplikator fuer eine Ware in einer konkreten Stadt zurueck.
+  // Regionale Ereignisse: nur aktiv fuer Staedte in der betroffenen Region.
+  // Globale Ereignisse (affectedCityIds leer): treffen alle Staedte.
+  function harvestMultiplier(goodId, cityId) {
     const evt = harvestEvents.find((e) => e.goodId === goodId);
-    return evt ? evt.multiplier : 1.0;
+    if (!evt) return 1.0;
+    if (!evt.affectedCityIds || evt.affectedCityIds.size === 0) return evt.multiplier; // global
+    return evt.affectedCityIds.has(cityId) ? evt.multiplier : 1.0;
   }
 
-  // Prueft Ereignisablauf und wuerfelt neue Ernteausfaelle.
+  // Prueft Ereignisablauf und wuerfelt neue regionale/globale Ernteausfaelle.
   // Gibt { expired: [...], started: [...] } zurueck — fuer Log-Meldungen im Aufrufer.
   function checkHarvestEvents(currentDay) {
     const expired = harvestEvents.filter((e) => currentDay >= e.endDay);
@@ -49,9 +53,20 @@ const Market = (() => {
           const multiplier = parseFloat(
             (def.multiplierMin + Math.random() * (def.multiplierMax - def.multiplierMin)).toFixed(2)
           );
-          const evt = { goodId: def.goodId, multiplier, endDay: currentDay + duration };
+          // Regionale oder globale Reichweite bestimmen
+          let affectedCityIds = new Set();
+          let regionName = null;
+          if (def.regions && def.regions.length > 0) {
+            const regionKey = def.regions[Math.floor(Math.random() * def.regions.length)];
+            const regionDef = CITY_REGIONS[regionKey];
+            affectedCityIds = new Set(regionDef ? regionDef.cities : []);
+            regionName = regionDef ? regionDef.name : regionKey;
+          }
+          // affectedCityIds leer = globales Ereignis
+          const evt = { goodId: def.goodId, multiplier, endDay: currentDay + duration,
+                        affectedCityIds, regionName };
           harvestEvents.push(evt);
-          started.push({ ...evt, duration, def });
+          started.push({ ...evt, duration });
         }
       }
     }
@@ -81,7 +96,7 @@ const Market = (() => {
         const m = state[city.id][good.id];
         // Aktive Ernteausfaelle heben den globalen Basiszielpreis an; nach Ereignisende
         // zieht der mean-reversion-Term (0.08 * diff) die Preise langsam wieder herunter.
-        const evtMult = harvestMultiplier(good.id);
+        const evtMult = harvestMultiplier(good.id, city.id);
         const target = good.basePrice * factor * evtMult;
         const noise = (Math.random() - 0.5) * good.volatility * target * 0.3;
         m.price += (target - m.price) * 0.08 + noise;
@@ -132,25 +147,42 @@ const Market = (() => {
   }
 
   function serialize() {
-    return { prices: state, harvestEvents };
+    // Set kann nicht direkt serialisiert werden — als Array speichern
+    return {
+      prices: state,
+      harvestEvents: harvestEvents.map((e) => ({
+        goodId: e.goodId, multiplier: e.multiplier, endDay: e.endDay,
+        regionName: e.regionName,
+        affectedCityIds: e.affectedCityIds ? [...e.affectedCityIds] : [],
+      })),
+    };
   }
 
   function restore(saved) {
     if (saved && saved.prices) {
       // Neues Format: { prices, harvestEvents }
       state = saved.prices;
-      harvestEvents = saved.harvestEvents || [];
+      harvestEvents = (saved.harvestEvents || []).map((e) => ({
+        ...e,
+        affectedCityIds: new Set(e.affectedCityIds || []),
+      }));
     } else {
-      // Altes Format: nur state-Objekt
+      // Altes Format: nur state-Objekt (Spielstaende vor Einführung des Ereignissystems)
       state = saved;
       harvestEvents = [];
     }
     fillMissingEntries();
   }
 
-  // Gibt aktive Ereignisse zurueck (fuer Anzeige im Tooltip oder Markt-UI).
+  // Gibt aktive Ereignisse zurueck (fuer Anzeige in Markt-UI und Karten-Tooltip).
+  // affectedCityIds als Set beibehalten — ermoeglicht O(1)-Lookup im Tooltip.
   function activeHarvestEvents() {
-    return harvestEvents.slice();
+    return harvestEvents.map((e) => ({
+      goodId: e.goodId, multiplier: e.multiplier, endDay: e.endDay,
+      regionName: e.regionName,
+      affectedCityIds: e.affectedCityIds,
+      isGlobal: !e.affectedCityIds || e.affectedCityIds.size === 0,
+    }));
   }
 
   return {

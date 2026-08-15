@@ -134,13 +134,70 @@ body {
   padding: 8px 10px;
   font-size: 12px;
   line-height: 1.5;
-  min-width: 180px;
-  max-width: 260px;
+  min-width: 240px;
+  max-width: 360px;
   z-index: 40;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 
 #city-tooltip.hidden { display: none; }
+
+/* Kontor-Tooltip: Preistabelle mit allen Waren */
+.tt-kontor-hint {
+  font-size: 10px;
+  color: #9fb4c7;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #26425f;
+  padding-bottom: 3px;
+}
+.tt-price-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.tt-price-table th {
+  color: #9fb4c7;
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 4px;
+  border-bottom: 1px solid #26425f;
+  font-weight: normal;
+}
+.tt-price-table td {
+  padding: 2px 4px;
+  border-bottom: 1px solid #1a2e42;
+  vertical-align: middle;
+  text-align: right;
+}
+.tt-price-table td:first-child { text-align: left; }
+.tt-col-name  { width: 44%; }
+.tt-col-price { width: 20%; }
+.tt-col-stock { width: 16%; }
+
+/* Zeilentypen */
+.tt-row-cargo { background: rgba(242,193,78,0.10); }
+.tt-row-cargo td { color: #f2c14e; }
+.tt-row-evt   { background: rgba(180,80,0,0.08); }
+
+/* Tags im Warennamen */
+.tt-dir    { font-size: 9px; margin-left: 2px; vertical-align: middle; }
+.tt-exp    { color: #6fcf97; }
+.tt-imp    { color: #f2994a; }
+.tt-evt    { font-size: 9px; color: #f0b860; margin-left: 2px; vertical-align: middle; }
+.tt-cargo-qty {
+  display: inline-block;
+  font-size: 10px;
+  background: rgba(242,193,78,0.25);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: #f2c14e;
+  margin-left: 3px;
+  vertical-align: middle;
+  font-weight: bold;
+}
+/* Kaufpreis-Zelle bei aktivem Ereignis */
+.tt-price-evt { color: #f0b860; font-weight: bold; }
 
 #city-tooltip h3 {
   margin: 0 0 4px;

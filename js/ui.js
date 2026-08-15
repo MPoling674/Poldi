@@ -146,21 +146,28 @@ const UI = (() => {
     el.marketCityName.textContent = city.name;
     el.marketHint.textContent = `Frachtraum frei: ${Fleet.cargoFree(ship)} / ${ship.cargoCapacity}`;
 
-    // Aktive Ernte-Ereignisse als Hinweiszeile oberhalb der Tabelle anzeigen
-    const activeEvts = Market.activeHarvestEvents();
+    // Aktive Ernte-Ereignisse als Hinweiszeile oberhalb der Tabelle anzeigen.
+    // Nur Ereignisse, die die aktuelle Stadt direkt betreffen, in der Farbe anzeigen;
+    // fernere Ereignisse (andere Region) grau — der Spieler soll die Preisunterschiede nutzen.
+    const allEvts = Market.activeHarvestEvents();
     let evtBanner = el.marketTbody.previousElementSibling;
     if (evtBanner && evtBanner.classList.contains("harvest-banner")) evtBanner.remove();
-    if (activeEvts.length > 0) {
+    if (allEvts.length > 0) {
       const banner = document.createElement("div");
       banner.className = "harvest-banner";
-      banner.innerHTML = activeEvts.map((e) => {
+      banner.innerHTML = allEvts.map((e) => {
         const def = HARVEST_FAIL_EVENTS.find((d) => d.goodId === e.goodId);
         const good = getGood(e.goodId);
-        const icon = def ? def.startMsg(0).charAt(0) : "⚠";
-        return `<span class="harvest-badge">${icon} <b>${good.name}</b>: Preise erhöht (×${e.multiplier.toFixed(1)}, noch ${e.endDay - Game.currentDay()} Tage)</span>`;
-      }).join(" &nbsp;·&nbsp; ");
+        const icon = def ? def.startMsg(0, "").charAt(0) : "⚠";
+        const affectsHere = e.isGlobal || (e.affectedCityIds && e.affectedCityIds.has(city.id));
+        const regionLabel = e.isGlobal ? "gesamtes Hansegebiet" : e.regionName;
+        const style = affectsHere ? "" : `style="opacity:0.5"`;
+        const localNote = affectsHere ? "" : " ·&nbsp;<em>hier nicht betroffen</em>";
+        return `<span class="harvest-badge" ${style}>${icon} <b>${good.name}</b>: ×${e.multiplier.toFixed(1)} · ${regionLabel} · noch ${e.endDay - Game.currentDay()} Tage${localNote}</span>`;
+      }).join("<br>");
       el.marketTbody.parentElement.insertBefore(banner, el.marketTbody);
     }
+    const activeEvts = allEvts; // Alias fuer Nutzung weiter unten
 
     el.marketTbody.innerHTML = "";
     GOODS.forEach((good) => {

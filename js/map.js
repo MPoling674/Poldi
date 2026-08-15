@@ -40,38 +40,82 @@ const GameMap = (() => {
   }
 
   function tooltipContent(city) {
-    const exportNames = city.exports.map((id) => getGood(id).name).join(", ") || "—";
-    const importNames = city.imports.map((id) => getGood(id).name).join(", ") || "—";
-    let html = `<h3>${city.name}</h3>`;
-    html += `<div class="tooltip-row"><span>Exportiert</span><span>${exportNames}</span></div>`;
-    html += `<div class="tooltip-row"><span>Importiert</span><span>${importNames}</span></div>`;
-
+    const exportSet = new Set(city.exports);
+    const importSet = new Set(city.imports);
     const kontorLevel = Kontor.level(city.id);
-    if (kontorLevel > 0) {
-      const relevantGoods = Array.from(new Set([...city.exports, ...city.imports]));
-      html += `<div class="tooltip-hint">Kontor Stufe ${kontorLevel} — bekannte Marktpreise:</div>`;
-      relevantGoods.forEach((goodId) => {
-        const good = getGood(goodId);
-        const buy = Market.buyPrice(city.id, goodId).toFixed(1);
-        const sell = Market.sellPrice(city.id, goodId).toFixed(1);
-        const stock = Market.availableStock(city.id, goodId);
-        html += `<div class="tooltip-row"><span>${good.name}</span><span>${buy}/${sell} G · Lager ${stock}</span></div>`;
-      });
 
-      const player = Fleet.playerShip();
-      const cargoGoodIds = player ? Object.keys(player.cargo).filter((id) => player.cargo[id] > 0) : [];
-      const ownCargoGoods = cargoGoodIds.filter((id) => !relevantGoods.includes(id));
-      if (ownCargoGoods.length > 0) {
-        html += `<div class="tooltip-hint">Deine Ladung hier:</div>`;
-        ownCargoGoods.forEach((goodId) => {
-          const good = getGood(goodId);
-          const sell = Market.sellPrice(city.id, goodId).toFixed(1);
-          html += `<div class="tooltip-row"><span>${good.name} (${player.cargo[goodId]}x)</span><span>${sell} G</span></div>`;
-        });
-      }
-    } else {
-      html += `<div class="tooltip-hint">Kein Kontor hier — Preise erst vor Ort sichtbar.</div>`;
+    let html = `<h3>${city.name}</h3>`;
+
+    if (kontorLevel === 0) {
+      // Kein Kontor: nur Export/Import-Liste, keine Preise
+      const expNames = city.exports.map((id) => getGood(id).name).join(", ") || "—";
+      const impNames = city.imports.map((id) => getGood(id).name).join(", ") || "—";
+      html += `<div class="tooltip-row"><span>Exportiert</span><span>${expNames}</span></div>`;
+      html += `<div class="tooltip-row"><span>Importiert</span><span>${impNames}</span></div>`;
+      html += `<div class="tooltip-hint">Kein Kontor — Preise erst vor Ort sichtbar.</div>`;
+      return html;
     }
+
+    html += `<div class="tooltip-hint tt-kontor-hint">Kontor Stufe ${kontorLevel} &nbsp;·&nbsp; ⬆ Export &nbsp; ⬇ Import &nbsp; ⚠ Ereignis</div>`;
+
+    // Aktive Ernteereignisse fuer diese Stadt ermitteln
+    const activeEvts = Market.activeHarvestEvents();
+    const evtForGood = (goodId) => activeEvts.find(
+      (e) => e.goodId === goodId && (e.isGlobal || (e.affectedCityIds && e.affectedCityIds.has(city.id)))
+    );
+
+    // Cargo des Spielerschiffs ermitteln
+    const player = Fleet.playerShip();
+    const cargoMap = {};
+    if (player) {
+      Object.keys(player.cargo).forEach((id) => {
+        if (player.cargo[id] > 0) cargoMap[id] = player.cargo[id];
+      });
+    }
+
+    // Waren sortieren: Exporte → Importe → neutrale Waren
+    const sortedGoods = [...GOODS].sort((a, b) => {
+      const rankA = exportSet.has(a.id) ? 0 : importSet.has(a.id) ? 1 : 2;
+      const rankB = exportSet.has(b.id) ? 0 : importSet.has(b.id) ? 1 : 2;
+      return rankA - rankB;
+    });
+
+    html += `<table class="tt-price-table">
+      <colgroup>
+        <col class="tt-col-name">
+        <col class="tt-col-price">
+        <col class="tt-col-price">
+        <col class="tt-col-stock">
+      </colgroup>
+      <thead><tr>
+        <th>Ware</th><th>Kauf</th><th>Verk.</th><th>Lgr.</th>
+      </tr></thead><tbody>`;
+
+    sortedGoods.forEach((good) => {
+      const buy  = Market.buyPrice(city.id, good.id).toFixed(1);
+      const sell = Market.sellPrice(city.id, good.id).toFixed(1);
+      const stock = Market.availableStock(city.id, good.id);
+      const inCargo  = cargoMap[good.id] || 0;
+      const evt      = evtForGood(good.id);
+
+      const dirTag = exportSet.has(good.id) ? `<span class="tt-dir tt-exp">⬆</span>`
+                   : importSet.has(good.id) ? `<span class="tt-dir tt-imp">⬇</span>`
+                   : "";
+      const evtTag   = evt ? `<span class="tt-evt">⚠</span>` : "";
+      const cargoTag = inCargo > 0 ? `<span class="tt-cargo-qty">${inCargo}×</span>` : "";
+
+      const rowCls = inCargo > 0 ? ` class="tt-row-cargo"` : (evt ? ` class="tt-row-evt"` : "");
+      const buyCls = evt ? ` class="tt-price-evt"` : "";
+
+      html += `<tr${rowCls}>
+        <td>${good.name}${dirTag}${evtTag}${cargoTag}</td>
+        <td${buyCls}>${buy}</td>
+        <td>${sell}</td>
+        <td>${stock}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
     return html;
   }
 

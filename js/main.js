@@ -245,11 +245,11 @@ const Game = (() => {
     const harvest = Market.checkHarvestEvents(day);
     harvest.expired.forEach((evt) => {
       const def = HARVEST_FAIL_EVENTS.find((d) => d.goodId === evt.goodId);
-      if (def) UI.log(def.endMsg());
+      if (def) UI.log(def.endMsg(evt.regionName));
     });
     harvest.started.forEach((evt) => {
       const def = HARVEST_FAIL_EVENTS.find((d) => d.goodId === evt.goodId);
-      if (def) UI.log(def.startMsg(evt.duration));
+      if (def) UI.log(def.startMsg(evt.duration, evt.regionName));
     });
 
     const sailingShips = Fleet.allShips().filter((s) => s.sailing);

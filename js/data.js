@@ -11,7 +11,7 @@ const CITIES = [
   { id: "danzig",   name: "Danzig",   x: 500, y: 290, exports: ["getreide", "holz", "bernstein"],    imports: ["tuch", "bier", "salz"] },
   { id: "nowgorod", name: "Nowgorod", x: 730, y: 140, exports: ["pelze", "wachs", "honig"],          imports: ["tuch", "salz", "wein"] },
 
-  { id: "rostock",    name: "Rostock",    x: 465, y: 318, exports: ["getreide", "holz"],          imports: ["tuch", "salz"] },
+  { id: "rostock",    name: "Rostock",    x: 465, y: 318, exports: ["getreide", "holz", "fisch"], imports: ["tuch", "salz"] },
   { id: "stettin",    name: "Stettin",    x: 536, y: 282, exports: ["getreide", "holz", "bernstein"], imports: ["tuch", "bier"] },
   { id: "konigsberg", name: "Königsberg", x: 578, y: 270, exports: ["bernstein", "getreide"],      imports: ["tuch", "wein"] },
   { id: "bremen",     name: "Bremen",     x: 300, y: 400, exports: ["bier", "tuch"],              imports: ["fisch", "wein"], river: { mouthX: 272, mouthY: 368 } },
@@ -19,7 +19,7 @@ const CITIES = [
   { id: "groningen",  name: "Groningen",  x: 240, y: 415, exports: ["getreide", "holz"],          imports: ["tuch", "bier"] },
   { id: "dorpat",     name: "Dorpat",     x: 615, y: 195, exports: ["getreide", "holz"],          imports: ["tuch", "salz"] },
   { id: "visby",      name: "Visby",      x: 540, y: 218, exports: ["wachs", "honig"],            imports: ["tuch", "eisen"] },
-  { id: "stockholm",  name: "Stockholm",  x: 290, y: 222, exports: ["eisen", "holz"],             imports: ["tuch", "salz"] },
+  { id: "stockholm",  name: "Stockholm",  x: 290, y: 222, exports: ["eisen", "holz", "fisch"],    imports: ["tuch", "salz"] },
 ];
 
 const GOODS = [
@@ -103,43 +103,68 @@ const KONTOR_UPKEEP_PER_LEVEL = 2; // Gulden/Tag je Kontor-Stufe
 const CARGO_EXPANSION_MAX_LEVEL = 10;
 const CARGO_EXPANSION_STEP = 0.1;
 
+// Handelsregionen fuer regionale Ernte- und Naturereignisse.
+// Tritt ein Ereignis auf, wird zufaellig eine der konfigurierten Regionen gewaehlt —
+// nur Staedte dieser Region erhalten den Preisschock. Das motiviert den Spieler,
+// Preisunterschiede zwischen Regionen auszunutzen (z.B. Getreide im betroffenen Osten
+// teuer verkaufen, im unbetroffenen Westen guenstig einkaufen).
+// Wein ist eine Ausnahme: da er von ausserhalb der Hanse kommt, trifft ein Ernteausfall
+// das gesamte Hansegebiet gleichmaessig (keine "regions"-Einschraenkung).
+const CITY_REGIONS = {
+  north_sea: {
+    name: "Nordsee- und Atlantikraum",
+    cities: ["bergen", "hamburg", "london", "brugge", "groningen", "bremen"],
+  },
+  baltic_west: {
+    name: "Westliche Ostsee",
+    cities: ["luebeck", "rostock", "stettin", "danzig", "konigsberg", "luneburg"],
+  },
+  baltic_east: {
+    name: "Östliche Ostsee",
+    cities: ["riga", "reval", "nowgorod", "dorpat", "visby", "stockholm"],
+  },
+};
+
 // Ernte- und Naturereignisse: Waren, die von Missernten oder schlechten Jahreszeiten
 // betroffen sein koennen. Das System wuerfelt alle HARVEST_FAIL_CHECK_INTERVAL Tage
-// fuer jede Ware. Bei Treffer wird ein globaler Preismultiplikator aktiv, der den
-// Basiszielpreis aller Staedte anhebt — bis das Ereignis nach "duration" Tagen ablaeuft.
-// Wein hat kein Produktionsrezept im Hansegebiet; historisch kamen Weinmangel-Schocks
-// durch schlechte Ernten in Burgund und am Rhein, die den gesamten Nordhandel trafen.
+// fuer jede Ware. Bei Treffer wird ein (regionaler oder globaler) Preismultiplikator
+// aktiv — bis das Ereignis nach "duration" Tagen ablaeuft.
+// "regions": Array von CITY_REGIONS-Schluesseln; bei Treffer wird eine Region zufaellig
+// gewaehlt. Fehlendes/leeres "regions" = globales Ereignis (alle Staedte betroffen).
 const HARVEST_FAIL_CHECK_INTERVAL = 30; // alle 30 Tage Wuerfeln
 const HARVEST_FAIL_EVENTS = [
   {
     goodId: "wein",
+    regions: null,                     // global: Burgunder/Rhein-Weinlese trifft gesamten Nordhandel
     chance: 0.07,                      // ~7 % je Pruefung ≈ einmal in ca. 15 Monaten
     durationMin: 45, durationMax: 90,
     multiplierMin: 1.5, multiplierMax: 2.5,
-    startMsg: (days) =>
-      `🍇 Ernteausfall! Die Weinlese in Burgund und am Rhein ist misslungen — Wein wird für etwa ${days} Tage deutlich teurer sein.`,
-    endMsg: () =>
+    startMsg: (days, _region) =>
+      `🍇 Ernteausfall! Die Weinlese in Burgund und am Rhein ist misslungen — Wein wird für etwa ${days} Tage im gesamten Hansegebiet teurer.`,
+    endMsg: (_region) =>
       `☀ Die Weinmärkte erholen sich — Preise kehren auf das übliche Niveau zurück.`,
   },
   {
     goodId: "getreide",
+    regions: ["north_sea", "baltic_west", "baltic_east"], // eine Region wird zufaellig getroffen
     chance: 0.05,                      // ~5 % je Pruefung ≈ einmal in ca. 20 Monaten
     durationMin: 60, durationMax: 120,
     multiplierMin: 1.3, multiplierMax: 2.0,
-    startMsg: (days) =>
-      `🌾 Missernte! Dürre und Unwetter vernichten die Getreideernte in den Anbaugebieten — Getreide wird für etwa ${days} Tage teurer.`,
-    endMsg: () =>
-      `☀ Die Getreideernte erholt sich — die Preise normalisieren sich.`,
+    startMsg: (days, region) =>
+      `🌾 Missernte! Dürre und Unwetter vernichten die Getreideernte im ${region} — Getreide wird dort für etwa ${days} Tage teurer.`,
+    endMsg: (region) =>
+      `☀ Die Getreideernte im ${region} erholt sich — Preise normalisieren sich.`,
   },
   {
     goodId: "fisch",
+    regions: ["north_sea", "baltic_east"], // Nordsee-Fischerei oder Ostseefischerei betroffen
     chance: 0.04,                      // ~4 % je Pruefung ≈ einmal in ca. 25 Monaten
     durationMin: 30, durationMax: 60,
     multiplierMin: 1.3, multiplierMax: 1.8,
-    startMsg: (days) =>
-      `🐟 Schlechte Fangsaison! Die Fischgründe in Nord- und Ostsee liefern magere Beute — Fisch wird für etwa ${days} Tage teurer.`,
-    endMsg: () =>
-      `☀ Die Fangsaison normalisiert sich — Fischpreise kehren zurück.`,
+    startMsg: (days, region) =>
+      `🐟 Schlechte Fangsaison im ${region}! Die Fischgründe liefern magere Beute — Fisch wird dort für etwa ${days} Tage teurer.`,
+    endMsg: (region) =>
+      `☀ Die Fangsaison im ${region} normalisiert sich — Fischpreise kehren zurück.`,
   },
 ];
 
