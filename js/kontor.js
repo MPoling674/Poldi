@@ -168,19 +168,46 @@ const Kontor = (() => {
         reason: `Alle Produktionsslots belegt (${plots} Parzelle${plots !== 1 ? "n" : ""}). Warte auf Fertigstellung oder kaufe weiteres Land.`,
       };
     }
-    // Reservierte Lagerfläche der laufenden Aufträge miteinbeziehen
+    // Vorprodukte prüfen: alle benötigten Mengen müssen im Kontor-Lager vorhanden sein.
+    const inputs = recipe.inputs || {};
+    for (const [inputId, needed] of Object.entries(inputs)) {
+      const available = (kontor.storage && kontor.storage[inputId]) || 0;
+      if (available < needed) {
+        return {
+          ok: false,
+          reason: `Nicht genug ${getGood(inputId).name} im Lager (benötigt: ${needed}, vorhanden: ${available}).`,
+        };
+      }
+    }
+    // Lagerkapazitätsprüfung: Inputs werden sofort verbraucht (freien Platz), Output reserviert.
+    const inputQtyTotal = Object.values(inputs).reduce((sum, q) => sum + q, 0);
     const reservedQty = kontor.productions.reduce((sum, p) => sum + p.outputQty, 0);
-    if (storageUsed(cityId) + reservedQty + recipe.outputQty > capacity(cityId)) {
+    if (storageUsed(cityId) - inputQtyTotal + reservedQty + recipe.outputQty > capacity(cityId)) {
       return { ok: false, reason: "Lagerkapazität reicht für die zu erzeugende Ware nicht aus." };
     }
+    // Materialeinsatz buchwertlich erfassen (Vollkostenprinzip: Vorprodukte fliessen zum
+    // Lagerwert in die Herstellkosten ein, damit das Fertigprodukt nicht unterbewertet wird).
+    if (!kontor.storageCost) kontor.storageCost = {};
+    let inputCost = 0;
+    for (const [inputId, needed] of Object.entries(inputs)) {
+      const unitCost = kontor.storageCost[inputId] || 0;
+      inputCost += unitCost * needed;
+      kontor.storage[inputId] -= needed;
+      if (kontor.storage[inputId] <= 0) {
+        delete kontor.storage[inputId];
+        delete kontor.storageCost[inputId];
+      }
+    }
+    inputCost = Math.round(inputCost);
     Fleet.addGold(-recipe.goldCost);
     kontor.productions.push({
       goodId,
       endDay: currentDay + recipe.days,
       outputQty: recipe.outputQty,
       goldCost: recipe.goldCost,
+      inputCost, // Lagerwert der verbrauchten Vorprodukte (fuer Herstellkostenbewertung)
     });
-    return { ok: true, recipe, endDay: currentDay + recipe.days };
+    return { ok: true, recipe, endDay: currentDay + recipe.days, inputCost };
   }
 
   // Prueft alle laufenden Produktionen fuer eine Stadt und schliesst abgeschlossene
@@ -194,7 +221,9 @@ const Kontor = (() => {
     if (!kontor.storage) kontor.storage = {};
     if (!kontor.storageCost) kontor.storageCost = {};
     done.forEach((p) => {
-      const unitCost = p.goldCost / p.outputQty;
+      // Vollkostenpreis: goldCost (Lohn/Betrieb) + inputCost (Materialeinsatz zum Lagerwert).
+      // Ohne inputCost (alte Spielstaende oder Rezepte ohne Vorprodukte) nur goldCost.
+      const unitCost = ((p.goldCost || 0) + (p.inputCost || 0)) / p.outputQty;
       const existingQty = kontor.storage[p.goodId] || 0;
       const existingCost = kontor.storageCost[p.goodId] || 0;
       // Gewichteter Durchschnitt aus bestehendem Bestand und neuer Produktionscharge

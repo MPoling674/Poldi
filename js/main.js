@@ -650,9 +650,15 @@ const Game = (() => {
     const res = Kontor.startProduction(cityId, goodId, day);
     if (res.ok) {
       Ledger.record("productionCosts", res.recipe.goldCost);
+      // Vorprodukt-Materialeinsatz: die Waren wurden bereits beim Einkauf als tradeCost
+      // gebucht; ihr Verschwinden aus dem Warenbestand reduziert die Inventarseite der
+      // GuV automatisch. Kein separater Ledger-Eintrag nötig — nur Hinweis im Log.
+      const inputNote = res.inputCost > 0
+        ? ` · Materialeinsatz: ${res.inputCost} G (Vorprodukte aus Lager)`
+        : "";
       UI.log(
         `Produktion gestartet: ${getGood(goodId).name} in ${getCity(cityId).name}` +
-        ` (${res.recipe.goldCost} G · ${res.recipe.days} Tage · fertig Tag ${res.endDay}).`
+        ` (${res.recipe.goldCost} G · ${res.recipe.days} Tage · fertig Tag ${res.endDay}${inputNote}).`
       );
     } else {
       UI.log(res.reason);

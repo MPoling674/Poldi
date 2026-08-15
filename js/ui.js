@@ -290,17 +290,33 @@ const UI = (() => {
             const slotsLeft = usedSlots < maxSlots;
             const hasGold = Fleet.gold() >= recipe.goldCost;
             const reservedQty = productions.reduce((sum, p) => sum + p.outputQty, 0);
-            const hasSpace = storageUsed + reservedQty + recipe.outputQty <= storageMax;
-            const canStart = hasPlots && slotsLeft && hasGold && hasSpace;
-            // Grund sichtbar im Button-Label, nicht nur als Tooltip
+            // Vorprodukte: prüfen ob alle Inputs vorhanden, Anzeige mit aktuellem Lagerbestand
+            const inputEntries = Object.entries(recipe.inputs || {});
+            let hasInputs = true;
+            let inputsLine = "";
+            if (inputEntries.length > 0) {
+              const parts = inputEntries.map(([inputId, needed]) => {
+                const available = storage[inputId] || 0;
+                const ok = available >= needed;
+                if (!ok) hasInputs = false;
+                const flag = ok ? "" : " ⚠";
+                return `${needed}× ${getGood(inputId).name} (Lager: ${available}${flag})`;
+              });
+              inputsLine = `<br><span class="production-inputs">⚗ ${parts.join(" · ")}</span>`;
+            }
+            const inputQtyTotal = inputEntries.reduce((sum, [, q]) => sum + q, 0);
+            const hasSpace = storageUsed - inputQtyTotal + reservedQty + recipe.outputQty <= storageMax;
+            const canStart = hasPlots && slotsLeft && hasGold && hasInputs && hasSpace;
+            // Grund sichtbar im Button-Label (nicht nur als Tooltip)
             const blockReason = !hasPlots ? "⚠ Kein Grundstück" :
               !slotsLeft ? "⚠ Kein Slot frei" :
               !hasGold ? "⚠ Kein Gold" :
+              !hasInputs ? "⚠ Vorprodukte fehlen" :
               !hasSpace ? "⚠ Lager voll" : "";
             html += `<div class="kontor-city production-option">
               <span>
                 <b>${getGood(goodId).name}</b> — ${recipe.days} Tage · ${recipe.goldCost} G → ${recipe.outputQty} Stück<br>
-                <small class="production-desc">${recipe.description}</small>
+                <small class="production-desc">${recipe.description}${inputsLine}</small>
               </span>
               <button data-action="produce" data-city="${dockedCityId}" data-good="${goodId}"
                 ${canStart ? "" : "disabled"}>

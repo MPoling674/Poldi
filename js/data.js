@@ -3,11 +3,11 @@
 const CITIES = [
   { id: "luebeck",  name: "Lübeck",   x: 430, y: 330, exports: ["bier", "salz"],                    imports: ["pelze", "wachs"] },
   { id: "hamburg",  name: "Hamburg",  x: 350, y: 350, exports: ["bier", "tuch"],                     imports: ["fisch", "getreide", "honig"] },
-  { id: "bergen",   name: "Bergen",   x: 220, y: 110, exports: ["fisch", "holz"],                    imports: ["getreide", "bier"] },
-  { id: "london",   name: "London",   x: 90,  y: 440, exports: ["tuch", "bier"],                     imports: ["pelze", "wachs", "salz", "bernstein"] },
-  { id: "brugge",   name: "Brügge",   x: 170, y: 410, exports: ["tuch", "wein"],                     imports: ["pelze", "wachs", "fisch", "getreide"] },
+  { id: "bergen",   name: "Bergen",   x: 220, y: 110, exports: ["fisch", "holz", "eisenerz"],         imports: ["getreide", "bier"] },
+  { id: "london",   name: "London",   x: 90,  y: 440, exports: ["tuch", "bier", "wolle"],             imports: ["pelze", "wachs", "salz", "bernstein"] },
+  { id: "brugge",   name: "Brügge",   x: 170, y: 410, exports: ["tuch", "wein", "wolle"],             imports: ["pelze", "wachs", "fisch", "getreide"] },
   { id: "riga",     name: "Riga",     x: 610, y: 240, exports: ["getreide", "holz", "wachs", "eisen"], imports: ["tuch", "salz"] },
-  { id: "reval",    name: "Reval",    x: 630, y: 160, exports: ["getreide", "holz", "eisen"],        imports: ["tuch", "bier"] },
+  { id: "reval",    name: "Reval",    x: 630, y: 160, exports: ["getreide", "holz", "eisen", "eisenerz"], imports: ["tuch", "bier"] },
   { id: "danzig",   name: "Danzig",   x: 500, y: 290, exports: ["getreide", "holz", "bernstein"],    imports: ["tuch", "bier", "salz"] },
   { id: "nowgorod", name: "Nowgorod", x: 730, y: 140, exports: ["pelze", "wachs", "honig"],          imports: ["tuch", "salz", "wein"] },
 
@@ -35,6 +35,9 @@ const GOODS = [
   { id: "bernstein", name: "Bernstein", basePrice: 60, volatility: 0.35 },
   { id: "wein",      name: "Wein",      basePrice: 20, volatility: 0.20 },
   { id: "honig",     name: "Honig",     basePrice: 10, volatility: 0.15 },
+  // Vorprodukte — Rohstoffe fuer die Weiterverarbeitung in der Produktion
+  { id: "eisenerz",  name: "Eisenerz",  basePrice: 6,  volatility: 0.15 },
+  { id: "wolle",     name: "Wolle",     basePrice: 10, volatility: 0.20 },
 ];
 
 const HOME_CITY_ID = "luebeck";
@@ -160,17 +163,46 @@ function cityDistance(cityIdA, cityIdB) {
 // goldCost: einmalige Produktionskosten (Saatgut, Lohnkosten, Werkzeug u.a.),
 // outputQty: erzeugte Einheiten je Lauf, days: Produktionsdauer in Tagen,
 // description: Beschreibung des historischen Gewinnungsprozesses.
+// Produktionsrezepte. Optionales Feld "inputs: { goodId: qty }" listet Vorprodukte,
+// die bei Produktionsstart sofort aus dem Kontor-Lager verbraucht werden.
+// Ohne inputs-Feld (oder leeres Objekt) wird nur Gold benötigt.
+// goldCost = reine Lohn- und Betriebskosten; Material-Einsatz wird separat aus dem
+// Lagerwert der Vorprodukte (storageCost) gerechnet und dem Fertigprodukt zugerechnet.
 const PRODUCTION_RECIPES = {
-  getreide:  { goldCost: 40,  outputQty: 20, days: 4,  description: "Felder werden bestellt, Getreide gesät, gepflegt und nach der Reifezeit gedroschen." },
-  holz:      { goldCost: 35,  outputQty: 20, days: 3,  description: "Waldstücke werden eingeschlagen; das Holz wird aufgesägt, gebündelt und ans Kontor geliefert." },
-  fisch:     { goldCost: 30,  outputQty: 18, days: 3,  description: "Fischerboote fahren in die nahen Gewässer, die Beute wird gesalzen und für den Transport aufbereitet." },
-  bier:      { goldCost: 60,  outputQty: 15, days: 5,  description: "Gerste und Hopfen werden angebaut; im Sudhaus wird Malz gemaischt, Hopfen zugegeben und das Bier vergoren." },
-  salz:      { goldCost: 70,  outputQty: 8,  days: 6,  description: "Sole wird aus dem Boden gefördert und in Salinen durch Verdampfung zu Siedesalz gewonnen — oder aus Fels gebrochen." },
-  tuch:      { goldCost: 180, outputQty: 8,  days: 7,  description: "Wolle wird von Schafen geschoren, gereinigt, gekämmt, gesponnen, gewebt, gewalkt und zu Tuch gefärbt." },
-  wein:      { goldCost: 120, outputQty: 8,  days: 8,  description: "Weinreben werden das Jahr über gepflegt, die Trauben im Herbst geerntet, gekeltert und zu Wein vergoren." },
-  pelze:     { goldCost: 200, outputQty: 6,  days: 5,  description: "Pelztiere werden in den umliegenden Wäldern gejagt; die Felle werden abgezogen, gegerbt und aufbereitet." },
-  wachs:     { goldCost: 100, outputQty: 7,  days: 5,  description: "Bienenstöcke werden aufgebaut und regelmäßig geerntet; das Rohwachs wird gereinigt, geläutert und geformt." },
-  honig:     { goldCost: 50,  outputQty: 12, days: 4,  description: "Bienenstöcke liefern Honig, der vorsichtig geerntet, von Wachs und Verunreinigungen getrennt und abgefüllt wird." },
-  eisen:     { goldCost: 150, outputQty: 8,  days: 7,  description: "Eisenerz wird aus dem Boden abgebaut, geröstet, im Hochofen mit Holzkohle verhüttet und zu Roheisen verarbeitet." },
-  bernstein: { goldCost: 160, outputQty: 5,  days: 5,  description: "Bernstein wird nach Stürmen an den Stränden gesammelt oder im Küstentagebau gewonnen und sortiert." },
+  // ── Vorprodukte (nur Gold, kein Materialeinsatz) ─────────────────────────────
+  eisenerz:  { goldCost: 50,  outputQty: 12, days: 5,
+    description: "Eisenerz wird im Tagebau und in Stollen gewonnen, grob aufbereitet und ans Kontor geliefert." },
+  wolle:     { goldCost: 40,  outputQty: 10, days: 4,
+    description: "Schafe werden auf umliegenden Weiden gehalten; nach der Schur wird die Wolle gewaschen und zu Ballen gepresst." },
+
+  // ── Einfache Erzeugnisse (nur Gold) ──────────────────────────────────────────
+  getreide:  { goldCost: 40,  outputQty: 20, days: 4,
+    description: "Felder werden bestellt, Getreide gesät, gepflegt und nach der Reifezeit gedroschen." },
+  holz:      { goldCost: 35,  outputQty: 20, days: 3,
+    description: "Waldstücke werden eingeschlagen; das Holz wird aufgesägt, gebündelt und ans Kontor geliefert." },
+  fisch:     { goldCost: 30,  outputQty: 18, days: 3,
+    description: "Fischerboote fahren in die nahen Gewässer, die Beute wird gesalzen und für den Transport aufbereitet." },
+  salz:      { goldCost: 70,  outputQty: 8,  days: 6,
+    description: "Sole wird aus dem Boden gefördert und in Salinen durch Verdampfung zu Siedesalz gewonnen — oder aus Fels gebrochen." },
+  wein:      { goldCost: 120, outputQty: 8,  days: 8,
+    description: "Weinreben werden das Jahr über gepflegt, die Trauben im Herbst geerntet, gekeltert und zu Wein vergoren." },
+  pelze:     { goldCost: 200, outputQty: 6,  days: 5,
+    description: "Pelztiere werden in den umliegenden Wäldern gejagt; die Felle werden abgezogen, gegerbt und aufbereitet." },
+  wachs:     { goldCost: 100, outputQty: 7,  days: 5,
+    description: "Bienenstöcke werden aufgebaut und regelmäßig geerntet; das Rohwachs wird gereinigt, geläutert und geformt." },
+  honig:     { goldCost: 50,  outputQty: 12, days: 4,
+    description: "Bienenstöcke liefern Honig, der vorsichtig geerntet, von Wachs und Verunreinigungen getrennt und abgefüllt wird." },
+  bernstein: { goldCost: 160, outputQty: 5,  days: 5,
+    description: "Bernstein wird nach Stürmen an den Stränden gesammelt oder im Küstentagebau gewonnen und sortiert." },
+
+  // ── Verarbeitungsprodukte (Gold + Vorprodukte aus Lager) ─────────────────────
+  bier:  { goldCost: 30,  outputQty: 15, days: 7,
+    inputs: { getreide: 5 },
+    description: "Getreide wird gemälzt, mit Wasser gemaischt und nach Hopfengabe im Sudhaus zu Bier vergoren und abgefüllt." },
+  eisen: { goldCost: 80,  outputQty: 8,  days: 7,
+    inputs: { eisenerz: 4 },
+    description: "Eisenerz wird geröstet, im Hochofen mit Holzkohle verhüttet und das gewonnene Roheisen zu Stangeneisen gehämmert." },
+  tuch:  { goldCost: 100, outputQty: 8,  days: 8,
+    inputs: { wolle: 6 },
+    description: "Wolle wird gereinigt, gekämmt, gesponnen, auf dem Webstuhl zu Tuch gewebt, gewalkt und in Farbe getaucht." },
 };

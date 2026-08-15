@@ -298,6 +298,13 @@ button:disabled { background: #2a3a30; color: #6a7a70; cursor: not-allowed; }
   line-height: 1.4;
 }
 
+.production-inputs {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #c9d8e8;
+}
+
 .modal, #travel-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);
