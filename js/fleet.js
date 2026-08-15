@@ -261,6 +261,45 @@ const Fleet = (() => {
     return { ok: true, cost, ship };
   }
 
+  // Nimmt ein besiegtes Piratenschiff als Prise in die Flotte auf. Es startet pausiert
+  // am Zielhafen (oder aktuellem Hafen), ohne Handelskapital und ohne Versicherung.
+  // Kanonenwert = 0, da die Piratenkanonen nicht bezahlt wurden (Bilanz bleibt konsistent).
+  // Schiffsname: Artikel abgestreift ("die Schwarze Möwe" → "Schwarze Möwe").
+  function captureShip(offer, cityId) {
+    const capacityByMasts = [0, 60, 80, 100];
+    const capacity = capacityByMasts[offer.masts] || 80;
+    const captain = CAPTAIN_NAMES[Math.floor(Math.random() * CAPTAIN_NAMES.length)];
+    const nextId = state.ships.length > 0 ? Math.max(...state.ships.map((s) => s.id)) + 1 : 1;
+    const shipName = offer.name.replace(/^(die|der|das|den) /i, "");
+    const ship = {
+      id: nextId,
+      name: shipName,
+      captain,
+      isPlayer: false,
+      currentCityId: cityId,
+      destinationCityId: null,
+      sailing: false,
+      progressDays: 0,
+      totalDays: 0,
+      cargo: {},
+      cargoCost: {},
+      cargoCapacity: capacity,
+      baseCargoCapacity: capacity,
+      cargoExpansionLevel: 0,
+      cannons: offer.cannons,
+      speedBonus: 0,
+      insurance: null,
+      cargoInsurance: null,
+      loan: null,
+      paused: true, // Spieler entscheidet, wann das Schiff zum Handel aufbricht
+      tradingCapital: 0,
+      cannonValue: 0, // nicht selbst bezahlt
+      cargoExpansionValue: 0,
+    };
+    state.ships.push(ship);
+    return { ok: true, ship };
+  }
+
   // Pausieren wirkt sofort: eine laufende Fahrt wird abgebrochen, das Schiff kehrt in
   // den Hafen zurueck, den es gerade verlassen hat (ship.currentCityId aendert sich erst
   // bei tatsaechlicher Ankunft, ist also waehrend der Fahrt noch der Ausgangshafen).
@@ -584,6 +623,7 @@ const Fleet = (() => {
     checkCargoInsuranceRenewal,
     cargoExpansionCost,
     expandCargoHold,
+    captureShip,
     destroyShip,
     payRansom,
     expireRansoms,

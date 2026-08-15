@@ -3,6 +3,10 @@
 const UI = (() => {
   const el = {};
   const callbacks = {};
+  // Steuert, welche Aktion die Piraten-Modal-Buttons ausloesen:
+  // "encounter" = Kämpfen / Fliehen (erste Entscheidung),
+  // "capture"   = Kapern / Versenken (zweite Entscheidung nach Sieg).
+  let _pirateModalMode = "encounter";
 
   function init() {
     el.hudDate = document.getElementById("hud-date");
@@ -69,8 +73,22 @@ const UI = (() => {
       });
     });
 
-    el.pirateFightBtn.addEventListener("click", () => callbacks.pirateChoice && callbacks.pirateChoice("fight"));
-    el.pirateFleeBtn.addEventListener("click", () => callbacks.pirateChoice && callbacks.pirateChoice("flee"));
+    el.pirateModalTitle = document.querySelector("#pirate-modal h2");
+
+    el.pirateFightBtn.addEventListener("click", () => {
+      if (_pirateModalMode === "capture") {
+        callbacks.captureChoice && callbacks.captureChoice("capture");
+      } else {
+        callbacks.pirateChoice && callbacks.pirateChoice("fight");
+      }
+    });
+    el.pirateFleeBtn.addEventListener("click", () => {
+      if (_pirateModalMode === "capture") {
+        callbacks.captureChoice && callbacks.captureChoice("plunder");
+      } else {
+        callbacks.pirateChoice && callbacks.pirateChoice("flee");
+      }
+    });
   }
 
   function on(name, cb) {
@@ -544,7 +562,41 @@ const UI = (() => {
     el.pirateModal.classList.remove("hidden");
   }
 
+  // Zeigt das zweite Piraten-Modal nach einem Sieg: Spieler wählt zwischen Kapern
+  // (Schiff in die Flotte aufnehmen) und Versenken/Plündern (nur Gold).
+  function showCaptureModal(offer) {
+    _pirateModalMode = "capture";
+    el.pirateModalTitle.textContent = "Schiff gekapert!";
+    const mastsStr = `${offer.masts} Mast${offer.masts !== 1 ? "en" : ""}`;
+    const cannonsStr = `${offer.cannons} Kanone${offer.cannons !== 1 ? "n" : ""}`;
+    const rawName = offer.name.replace(/^(die|der|das|den) /i, "");
+    el.pirateText.innerHTML =
+      `<span>Was tut Ihr mit dem besiegten Schiff?</span>` +
+      `<div class="pirate-stats">` +
+        `<div class="pirate-stat-row">` +
+          `<span class="pirate-stat-label">🏴‍☠️ ${offer.name}</span>` +
+          `<span class="pirate-stat-value">${mastsStr} · ${cannonsStr} · ${offer.capacity} Laderaum</span>` +
+        `</div>` +
+        `<div class="pirate-stat-row">` +
+          `<span class="pirate-stat-label">⚓ Kapern</span>` +
+          `<span class="pirate-stat-value">${offer.boardingGold} G Beute + "${rawName}" in die Flotte</span>` +
+        `</div>` +
+        `<div class="pirate-stat-row">` +
+          `<span class="pirate-stat-label">💰 Versenken</span>` +
+          `<span class="pirate-stat-value">${offer.plunderGold} G Beute · Schiff geht unter</span>` +
+        `</div>` +
+      `</div>`;
+    el.pirateFightBtn.textContent = "⚓ Kapern";
+    el.pirateFleeBtn.textContent = "💰 Versenken";
+    el.pirateModal.classList.remove("hidden");
+  }
+
   function hidePirateModal() {
+    // Modus und Button-Labels auf Standardzustand zurücksetzen
+    _pirateModalMode = "encounter";
+    if (el.pirateModalTitle) el.pirateModalTitle.textContent = "Piraten in Sicht!";
+    el.pirateFightBtn.textContent = "Kämpfen";
+    el.pirateFleeBtn.textContent = "Fliehen";
     el.pirateModal.classList.add("hidden");
   }
 
@@ -850,6 +902,7 @@ const UI = (() => {
     renderAll,
     log,
     showPirateModal,
+    showCaptureModal,
     hidePirateModal,
     showTravelOverlay,
     updateTravelBar,

@@ -13,15 +13,15 @@ const Pirates = (() => {
     "der Rächer der Nordsee",
   ];
 
-  // Erzeugt einen zufälligen Piratengegner und speichert ihn für resolveFight/
-  // resolveFlee. Masten (1–3) bestimmen die Schiffsgrösse; Kanonen (0–2×Masten)
-  // sind der entscheidende Kampfwert. Staerke = f(Kanonen, Masten, Zufall).
+  // Erzeugt einen zufälligen Piratengegner. Masten (1–3) bestimmen Schiffsgrösse
+  // und Laderaum beim Kapern; Kanonen (0–2×Masten) sind der alleinige Kampfwert.
+  // strength wird nicht mehr separat vorberechnet — resolveFight nutzt direkt
+  // enc.cannons in der Sigmoid-Formel.
   function generateEncounter() {
     const masts = 1 + Math.floor(Math.random() * 3);
     const cannons = Math.floor(Math.random() * (masts * 2 + 1));
-    const strength = cannons * 1.5 + masts * 0.5 + 0.5 + Math.random() * 1.5;
     const name = PIRATE_SHIP_NAMES[Math.floor(Math.random() * PIRATE_SHIP_NAMES.length)];
-    _currentEncounter = { masts, cannons, strength, name };
+    _currentEncounter = { masts, cannons, name };
     return _currentEncounter;
   }
 
@@ -65,13 +65,45 @@ const Pirates = (() => {
   }
 
   function resolveFight(ship, currentDay) {
-    // Vorher generierte Begegnung (mit sichtbaren Schiffsdaten) verwenden, falls vorhanden;
-    // Fallback fuer den Fall, dass resolveFight ohne vorherigen generateEncounter-Aufruf
-    // aufgerufen wird (z.B. bei alten Tests oder NPC-Schiffen, die kaempfen).
-    const pirateStrength = _currentEncounter ? _currentEncounter.strength : (2 + Math.random() * 4);
+    // Begegnung sofort loeschen (vor allen fruehzeitigen returns), damit kein alter
+    // Stand in eine spätere Begegnung einfliesst.
+    const enc = _currentEncounter;
     _currentEncounter = null;
-    const winChance = ship.cannons / (ship.cannons + pirateStrength);
+
+    // Sigmoid-Formel auf Kanonen-Differenz: winChance = sigmoid(diff × k), k = 1.8.
+    // Kleines Rauschen (±0.4) simuliert Seegang und Treffgenauigkeit.
+    // Grenzen: min 3 %, max 97 % — der Kampf ist nie völlig aussichtslos oder sicher.
+    // Beispiele: +4 Kanonen Vorteil → ~97 % (gedeckelt); Gleichstand → ~50 %;
+    //            −2 Kanonen → ~5–10 %. Gegen 0-Kanonen-Piraten verliert man praktisch nie.
+    const pirateCannons = enc ? enc.cannons : 0;
+    const diff = ship.cannons - pirateCannons + (Math.random() * 0.8 - 0.4);
+    const winChance = Math.min(0.97, Math.max(0.03, 1 / (1 + Math.exp(-diff * 1.8))));
+
     if (Math.random() < winChance) {
+      // Sieg mit Encounter: Kapern-Angebot statt sofortiger Beute zurückgeben —
+      // der Spieler entscheidet im zweiten Modal (Kapern vs. Versenken).
+      if (enc) {
+        const capacityByMasts = [0, 60, 80, 100];
+        const capturedCapacity = capacityByMasts[enc.masts] || 80;
+        // Beim Kapern weniger Bargeld (Crew hat Kasse geleert); beim Versenken
+        // gezieltere Plünderung der Schiffskasse.
+        const boardingGold = Math.round(20 + Math.random() * 60);
+        const plunderGold  = Math.round(50 + Math.random() * 100);
+        return {
+          won: true,
+          destroyed: false,
+          captureOffer: {
+            masts: enc.masts,
+            cannons: enc.cannons,
+            name: enc.name,
+            capacity: capturedCapacity,
+            boardingGold,
+            plunderGold,
+          },
+          message: `Die Piraten sind besiegt! ${enc.name} liegt wehrlos auf der See.`,
+        };
+      }
+      // NPC-Fallback (kein Encounter-Objekt): sofortige Beute
       const loot = Math.round(50 + Math.random() * 100);
       Fleet.addGold(loot);
       Ledger.record("pirateLoot", loot);

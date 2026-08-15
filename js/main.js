@@ -6,6 +6,7 @@ const Game = (() => {
 
   let day = 1;
   let pendingPirateResolve = null;
+  let pendingCaptureOffer = null; // gesetztes Kapern-Angebot, bis Spieler entschieden hat
   let tickScheduled = false;
 
   function currentDay() {
@@ -672,10 +673,60 @@ const Game = (() => {
     const ship = Fleet.playerShip();
     const result = choice === "fight" ? Pirates.resolveFight(ship, day) : Pirates.resolveFlee(ship, day);
     UI.log(result.message);
+
+    // Sieg mit Kapern-Angebot: Modal bleibt offen und wechselt in den Kapern-Modus.
+    // Tick-Fortsetzung (pendingPirateResolve) bleibt bis zur Kapernentscheidung hängen.
+    if (result.captureOffer) {
+      pendingCaptureOffer = result.captureOffer;
+      UI.showCaptureModal(result.captureOffer);
+      return;
+    }
+
     UI.hidePirateModal();
     if (result.destroyed) {
       UI.hideTravelOverlay();
     }
+    UI.renderAll();
+    saveGame();
+    if (pendingPirateResolve) {
+      const fn = pendingPirateResolve;
+      pendingPirateResolve = null;
+      fn();
+    }
+  }
+
+  // Verarbeitet die Kapernentscheidung nach einem Seesieg.
+  // "capture" → Schiff in die Flotte aufnehmen + weniger Gold.
+  // "plunder" → Mehr Gold, Schiff versenkt.
+  function handleCaptureChoice(choice) {
+    const offer = pendingCaptureOffer;
+    pendingCaptureOffer = null;
+    if (!offer) { UI.hidePirateModal(); return; }
+
+    const player = Fleet.playerShip();
+    // Das erbeutete Schiff erscheint am Zielhafen (noch unterwegs) oder am aktuellen Hafen.
+    const landingCityId = player && player.sailing
+      ? player.destinationCityId
+      : (player ? player.currentCityId : HOME_CITY_ID);
+
+    if (choice === "capture") {
+      const res = Fleet.captureShip(offer, landingCityId);
+      const gold = offer.boardingGold;
+      Fleet.addGold(gold);
+      Ledger.record("pirateLoot", gold);
+      UI.log(
+        `⚓ ${res.ship.name} (Kapitän ${res.ship.captain}) in die Flotte aufgenommen — ` +
+        `${offer.cannons} Kanone${offer.cannons !== 1 ? "n" : ""}, ${offer.capacity} Laderaum. ` +
+        `Wartet pausiert in ${getCity(landingCityId).name}. Erbeutet: ${gold} Gulden.`
+      );
+    } else {
+      const gold = offer.plunderGold;
+      Fleet.addGold(gold);
+      Ledger.record("pirateLoot", gold);
+      UI.log(`💰 ${offer.name} geplündert und versenkt. Erbeutet: ${gold} Gulden.`);
+    }
+
+    UI.hidePirateModal();
     UI.renderAll();
     saveGame();
     if (pendingPirateResolve) {
@@ -730,6 +781,7 @@ const Game = (() => {
     UI.on("buyLand", handleBuyLand);
     UI.on("startProduction", handleStartProduction);
     UI.on("pirateChoice", handlePirateChoice);
+    UI.on("captureChoice", handleCaptureChoice);
     UI.on("saveNow", handleSaveNow);
     UI.on("exportSave", handleExportSave);
     UI.on("importSave", handleImportSave);
