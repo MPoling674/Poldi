@@ -445,14 +445,19 @@ const UI = (() => {
     let html = "";
     Fleet.allShips().forEach((ship) => {
       const cargoUsed = Fleet.cargoUsed(ship);
-      const wageLine = ship.isPlayer
-        ? ""
+      const mooringFeePerDay = MOORING_FEE_PER_MAST * (ship.masts || 2);
+      const wageLine = ship.isPlayer ? "" : ship.paused
+        ? ` · Liegegebühr: ${mooringFeePerDay} G/Tag`
         : ` · Heuer/Tag ~${Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship))} G`;
       const insured = ship.insurance && ship.insurance.active;
       const insuranceCost = Fleet.insuranceCost(ship, Game.currentDay());
       const cargoInsured = ship.cargoInsurance && ship.cargoInsurance.active;
       const cargoInsuranceCost = Fleet.cargoInsuranceCost(ship, Game.currentDay());
-      const pausedNote = !ship.isPlayer && ship.paused ? " · Handel pausiert" : "";
+      const debt = ship.mooringDebt || 0;
+      const debtWarning = debt > 0
+        ? ` · <span style="color:#f0b860">⚠ Liegeschulden: ${debt}/${MOORING_DEBT_DEADLINE} Tage</span>`
+        : "";
+      const pausedNote = !ship.isPlayer && ship.paused ? ` · Handel pausiert${debtWarning}` : "";
       const capitalNote = !ship.isPlayer ? ` · Handelskapital: ${Math.round(ship.tradingCapital || 0)} G` : "";
       const expansionLevel = ship.cargoExpansionLevel || 0;
       const expansionMaxed = expansionLevel >= CARGO_EXPANSION_MAX_LEVEL;
@@ -675,7 +680,8 @@ const UI = (() => {
     tradeRevenue: "Handelserlöse",
     tradeCost: "Wareneinkauf",
     harborFees: "Hafengebühren",
-    wages: "Heuer",
+    wages: "Heuer (aktive Schiffe)",
+    mooringFees: "Liegeplatzgebühren (pausierte Schiffe)",
     kontorUpkeep: "Kontor-Unterhalt",
     insurancePremiums: "Versicherungsprämien (Rumpf)",
     insurancePayouts: "Versicherungsleistungen (Schiffsersatz)",
@@ -698,7 +704,7 @@ const UI = (() => {
   };
   const LEDGER_INCOME_CATEGORIES = ["tradeRevenue", "insurancePayouts", "cargoInsurancePayouts", "debtForgiveness", "pirateLoot", "shipCaptures"];
   const LEDGER_EXPENSE_CATEGORIES = [
-    "tradeCost", "harborFees", "wages", "kontorUpkeep", "insurancePremiums", "cargoInsurancePremiums",
+    "tradeCost", "harborFees", "wages", "mooringFees", "kontorUpkeep", "insurancePremiums", "cargoInsurancePremiums",
     "ransoms", "pirateLosses", "loanInterest", "assetDisposalLosses", "productionCosts", "landPurchases",
   ];
 

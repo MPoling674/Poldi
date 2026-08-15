@@ -61,7 +61,12 @@ const SHIP_BASE_COST = 1000; // Kosten = SHIP_BASE_COST * aktuelle Schiffsanzahl
 // Dreimastern sicher.
 const SHIP_CAPACITY_BY_MASTS = [0, 60, 80, 100];
 const SHIP_VALUE_BY_MASTS    = [0, Math.round(SHIP_BASE_COST * 0.4), Math.round(SHIP_BASE_COST * 0.7), SHIP_BASE_COST];
-const WAGE_BASE = 3; // Gulden/Tag Grundheuer je NPC-Schiff
+const WAGE_BASE = 3; // Gulden/Tag Grundheuer je NPC-Schiff (nur aktive, nicht pausierte Schiffe)
+// Liegeplatzgebühr fuer pausierte NPC-Schiffe (statt voller Heuer).
+// Crew kann entlassen/reduziert werden; nur Hafenmiete bleibt.
+// Bleibt unbezahlt, geht das Schiff nach MOORING_DEBT_DEADLINE Tagen in die Zwangsversteigerung.
+const MOORING_FEE_PER_MAST = 1;   // Gulden/Tag je Mast (1-Master: 1 G, 2-Master: 2 G, 3-Master: 3 G)
+const MOORING_DEBT_DEADLINE = 30;  // Tage unbezahlter Gebuehren bis zur Zwangsversteigerung
 const WAGE_CARGO_RATE = 0.03; // + 3% des aktuellen Ladungswerts/Tag
 const WAGE_STRENGTH_RATE = 1; // + 1 G/Tag je Punkt "Stärke" (Kanonen/Groesse)
 const DESTRUCTION_CHANCE = 0.25; // Anteil der Niederlagen, die zum Totalverlust führen

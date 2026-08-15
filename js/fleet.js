@@ -33,6 +33,7 @@ const Fleet = (() => {
       cargoInsurance: null,
       loan: null,
       paused: false,
+      mooringDebt: 0, // Anzahl Tage, an denen die Liegeplatzgebuehr nicht bezahlt werden konnte
       bookValue: SHIP_VALUE_BY_MASTS[3], // = SHIP_BASE_COST
       cannonValue: 0,
       cargoExpansionValue: 0,
@@ -274,6 +275,7 @@ const Fleet = (() => {
       cargoInsurance: null,
       loan: null,
       paused: false,
+      mooringDebt: 0,
       tradingCapital: initialCapital,
       bookValue: SHIP_BASE_COST, // Anschaffungskosten als Buchwert
       cannonValue: 0,
@@ -322,6 +324,7 @@ const Fleet = (() => {
       cargoInsurance: null,
       loan: null,
       paused: true, // Spieler entscheidet, wann das Schiff zum Handel aufbricht
+      mooringDebt: 0,
       tradingCapital: 0,
       bookValue, // Zeitwert bei Zugang (nach § 253 HGB), Basis fuer spaeteren Abgang/Beleihung
       cannonValue: 0, // Piratenkanonen: nicht selbst bezahlt, kein Anschaffungswert
@@ -392,6 +395,29 @@ const Fleet = (() => {
     addGold(netProceeds + capitalReturned);
     state.ships = state.ships.filter((s) => s.id !== ship.id);
     return { ok: true, proceeds, loanRepaid: loanPrincipal, netProceeds, capitalReturned, cannonValueLost, assetLoss };
+  }
+
+  // Zwangsversteigerung eines NPC-Schiffs nach unbezahlten Liegeplatzgebuehren.
+  // Erzielt nur 50% des Buchwerts (Notverkauf) plus 50% des Kanonenbuchwerts — analog zu
+  // sellShip(), aber ohne Sperrung bei Kredituebersteigung: Kredit wird soweit moeglich
+  // aus dem Erloes getilgt, Restschuld wird als Verlust abgeschrieben.
+  // Handelskapital ist Bargeld und wird zusaetzlich zurueckgegeben.
+  function forecloseShip(ship) {
+    const cannonValueHalf = Math.round((ship.cannonValue || 0) * 0.5);
+    const proceeds = Math.round(shipValue(ship) * 0.5) + cannonValueHalf;
+    let netProceeds = proceeds;
+    let loanRepaid = 0;
+    let loanWrittenOff = 0;
+    if (ship.loan && ship.loan.principal > 0) {
+      loanRepaid = Math.min(proceeds, ship.loan.principal);
+      loanWrittenOff = ship.loan.principal - loanRepaid;
+      netProceeds -= loanRepaid;
+    }
+    const capitalReturned = ship.tradingCapital || 0;
+    const assetLoss = Math.max(0, shipValue(ship) + (ship.cannonValue || 0) - proceeds);
+    addGold(Math.max(0, netProceeds) + capitalReturned);
+    state.ships = state.ships.filter((s) => s.id !== ship.id);
+    return { proceeds, netProceeds: Math.max(0, netProceeds), loanRepaid, loanWrittenOff, capitalReturned, assetLoss };
   }
 
   // Anteiliger Beitrag fuer den Rest des laufenden Spieljahres (feste Jahresgrenzen ab Tag 1).
@@ -617,6 +643,8 @@ const Fleet = (() => {
       }
       // Migration: Buchwert fuer Bestandsschiffe (waren alle gekauft → Anschaffungskosten).
       if (ship.bookValue === undefined) ship.bookValue = SHIP_BASE_COST;
+      // Migration: Liegeschulden-Zaehler (neues Feature).
+      if (ship.mooringDebt === undefined) ship.mooringDebt = 0;
     });
   }
 
@@ -654,6 +682,7 @@ const Fleet = (() => {
     fundShip,
     withdrawShipCapital,
     sellShip,
+    forecloseShip,
     insuranceCost,
     buyInsurance,
     checkInsuranceRenewal,

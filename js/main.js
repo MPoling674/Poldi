@@ -289,15 +289,60 @@ const Game = (() => {
       }
     }
 
+    // Lohn- und Liegeplatzgebühren: pausierte Schiffe zahlen keine Heuer,
+    // sondern nur eine reduzierte Liegeplatzgebühr (MOORING_FEE_PER_MAST G/Mast/Tag).
+    // Kann das Schiff die Gebühr nicht bezahlen, wächst mooringDebt; nach
+    // MOORING_DEBT_DEADLINE Tagen Rückstand wird das Schiff zwangsversteigert.
+    const forecloseList = [];
     Fleet.allShips().forEach((ship) => {
       if (ship.isPlayer) return;
-      const wage = Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship));
-      // Heuer ist eine Betriebskosten des Schiffs selbst — bezahlt aus seinem eigenen
-      // Handelskapital, nicht aus der Kriegskasse. Reicht es nicht, wird nur der
-      // tatsaechlich zahlbare Teil verbucht (kein Schulden-Modell fuer Heuer).
-      const paid = Math.min(wage, ship.tradingCapital || 0);
-      Fleet.addShipCapital(ship, -paid);
-      Ledger.record("wages", paid);
+
+      if (ship.paused) {
+        // Pausiertes Schiff: nur Liegeplatzgebühr, keine Heuer
+        const fee = MOORING_FEE_PER_MAST * (ship.masts || 2);
+        const capital = ship.tradingCapital || 0;
+        const paid = Math.min(fee, capital);
+        if (paid > 0) {
+          Fleet.addShipCapital(ship, -paid);
+          Ledger.record("mooringFees", paid);
+        }
+        if (paid < fee) {
+          // Nicht vollständig bezahlt: Schulden-Zähler hochsetzen
+          ship.mooringDebt = (ship.mooringDebt || 0) + 1;
+          if (ship.mooringDebt === 1) {
+            UI.log(`⚠ ${ship.name}: Liegeplatzgebühr (${fee} G/Tag) kann nicht bezahlt werden — kein Handelskapital. Zwangsversteigerung in ${MOORING_DEBT_DEADLINE} Tagen.`);
+          } else if (ship.mooringDebt >= MOORING_DEBT_DEADLINE) {
+            forecloseList.push(ship); // nach dem Durchlauf entfernen (Array-Mutation während forEach vermeiden)
+          }
+        } else {
+          // Gebühr beglichen: Zähler zurücksetzen
+          if (ship.mooringDebt > 0) {
+            ship.mooringDebt = 0;
+            UI.log(`✓ ${ship.name}: Liegeplatzgebühr wieder beglichen.`);
+          }
+        }
+      } else {
+        // Aktives Schiff (handelnd oder auf See): volle Heuer
+        ship.mooringDebt = 0; // Aktivierung löscht etwaige Schulden
+        const wage = Math.round(WAGE_BASE + WAGE_STRENGTH_RATE * shipStrength(ship) + WAGE_CARGO_RATE * Fleet.cargoValue(ship));
+        // Heuer wird aus dem eigenen Handelskapital bezahlt — reicht es nicht,
+        // wird nur der tatsaechlich verfuegbare Betrag verbucht.
+        const paid = Math.min(wage, ship.tradingCapital || 0);
+        Fleet.addShipCapital(ship, -paid);
+        Ledger.record("wages", paid);
+      }
+    });
+    // Zwangsversteigerungen nach dem Durchlauf verarbeiten (außerhalb der forEach-Iteration)
+    forecloseList.forEach((ship) => {
+      const res = Fleet.forecloseShip(ship);
+      if (res.assetLoss > 0) Ledger.record("assetDisposalLosses", res.assetLoss);
+      const loanNote = res.loanRepaid > 0
+        ? ` · Kredit ${Math.round(res.loanRepaid)} G getilgt${res.loanWrittenOff > 0 ? `, Restschuld ${Math.round(res.loanWrittenOff)} G abgeschrieben` : ""}.`
+        : "";
+      UI.log(
+        `⚖ ${ship.name} zwangsversteigert nach ${MOORING_DEBT_DEADLINE} Tagen unbezahlter Liegeplatzgebühren.` +
+        ` Erlös: ${res.proceeds} G (netto: ${res.netProceeds} G)${loanNote}`
+      );
     });
 
     let kontorUpkeepTotal = 0;
