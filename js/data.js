@@ -72,6 +72,17 @@ const CAPTAIN_NAMES = [
   "Gerd Lindeman", "Otto Kranz", "Wulf Segeberg", "Diderik Pahl",
 ];
 
+// Historisch angemessene Schiffsnamen fuer hanseatische Kauffahrtei-Koggen:
+// religioes (Schutzheilige der Seeleute), Tugenden und hanseatische Embleme.
+// Deutlich andere Sprachwelt als die Piratenschiffsnamen (dunkel/bedrohlich).
+const MERCHANT_SHIP_NAMES = [
+  "die Hoffnung", "die Treue", "die Einigkeit", "die Fortuna",
+  "Sancta Maria", "die Elisabeth", "die Katharina", "die Margarethe",
+  "der Adler", "der Falke", "der Nordstern", "der Hanseat",
+  "Sankt Nikolaus", "Sankt Georg", "die Gute Fahrt",
+  "der Pelikan", "der Kranich", "die Freiheit",
+];
+
 // Wirtschaft: Versicherung, Hafengebühren, Kontor-Unterhalt
 const YEAR_LENGTH_DAYS = 360;
 const INSURANCE_ANNUAL_COST = 25;

@@ -233,9 +233,19 @@ const Fleet = (() => {
     if (state.gold < cost) return { ok: false, reason: "Nicht genug Gold für ein neues Schiff." };
     state.gold -= cost;
     const becomesFlagship = !playerShip();
-    const number = state.ships.length + 1;
     const nextId = Math.max(0, ...state.ships.map((s) => s.id)) + 1;
     const captain = becomesFlagship ? "Du" : CAPTAIN_NAMES[Math.floor(Math.random() * CAPTAIN_NAMES.length)];
+    // Zufälligen, noch nicht vergebenen Schiffsnamen wählen.
+    // Bei Erschöpfung aller Namen (>18 Schiffe): Fallback mit laufender Nummer.
+    function pickMerchantName() {
+      const used = new Set(state.ships.map((s) => s.name));
+      const free = MERCHANT_SHIP_NAMES.filter((n) => !used.has(n));
+      if (free.length > 0) return free[Math.floor(Math.random() * free.length)];
+      const base = MERCHANT_SHIP_NAMES[Math.floor(Math.random() * MERCHANT_SHIP_NAMES.length)];
+      let i = 2;
+      while (used.has(`${base} ${i}`)) i++;
+      return `${base} ${i}`;
+    }
     // NPC-Schiffe bekommen ein eigenes, gedeckeltes Handelskapital (50% des nach dem
     // Kauf verbleibenden Goldes) statt frei aus der gemeinsamen Kriegskasse zu handeln.
     const initialCapital = becomesFlagship ? 0 : Math.round(state.gold * 0.5);
@@ -244,7 +254,7 @@ const Fleet = (() => {
     // Buchwert = SHIP_BASE_COST (Anschaffungskosten-Prinzip: Preis gezahlt).
     const ship = {
       id: nextId,
-      name: becomesFlagship ? "Flaggschiff" : `Kogge ${number}`,
+      name: becomesFlagship ? "Flaggschiff" : pickMerchantName(),
       captain,
       isPlayer: becomesFlagship,
       currentCityId: cityId,
